@@ -3155,7 +3155,9 @@ regNumber           genMapIntRegArgNumToRegNum(unsigned argNum)
 inline
 regNumber           genMapFloatRegArgNumToRegNum(unsigned argNum)
 {
-#ifndef _TARGET_X86_
+#ifdef ARM_SOFTFP
+    return genMapIntRegArgNumToRegNum(argNum);
+#elif !defined(_TARGET_X86_)
     assert (argNum < ArrLen(fltArgRegs));
 
     return fltArgRegs[argNum];

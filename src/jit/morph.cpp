@@ -2950,7 +2950,7 @@ GenTreeCall* Compiler::fgMorphArgs(GenTreeCall* callNode)
             argEntry = gtArgEntryByArgNum(call, argIndex);
         }
 
-#ifdef _TARGET_ARM_
+#if defined(_TARGET_ARM_) && !defined(ARM_SOFTFP)
 
         bool passUsingIntRegs;
 
@@ -3030,7 +3030,7 @@ GenTreeCall* Compiler::fgMorphArgs(GenTreeCall* callNode)
 #else // !UNIX_AMD64_ABI
         passUsingFloatRegs = varTypeIsFloating(argx);
 #endif // !UNIX_AMD64_ABI
-#elif defined(_TARGET_X86_)
+#elif defined(_TARGET_X86_) || defined(ARM_SOFTFP)
 
         passUsingFloatRegs = false;
 
