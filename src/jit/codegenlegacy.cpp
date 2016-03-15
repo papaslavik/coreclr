@@ -20433,7 +20433,11 @@ regMaskTP           CodeGen::genCodeForCall(GenTreePtr  call,
     if (call->gtType == TYP_FLOAT || call->gtType == TYP_DOUBLE)
     {
 #ifdef _TARGET_ARM_
-        if (call->gtCall.IsVarargs())
+        bool UseIntReg = call->gtCall.IsVarargs();
+#ifdef ARM_SOFTFP
+        UseIntReg = true;
+#endif
+        if (UseIntReg)
         {
             // Result return for vararg methods is in r0, r1, but our callers would
             // expect the return in s0, s1 because of floating type. Do the move now.

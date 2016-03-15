@@ -229,7 +229,12 @@ void CodeGen::genFloatSimple(GenTree *tree, RegSet::RegisterPreference *pref)
             genCodeForTreeFloat(op1, pref);
 
             inst_RV_TT(ins_FloatConv(tree->TypeGet(), op1->TypeGet()), REG_FLOATRET, op1);
-            if (compiler->info.compIsVarArgs)
+
+            bool UseIntReg = compiler->info.compIsVarArgs;
+#ifdef ARM_SOFTFP
+            UseIntReg = true;
+#endif
+            if (UseIntReg)
             {
                 if (tree->TypeGet() == TYP_FLOAT)
                 {
