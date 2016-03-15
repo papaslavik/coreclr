@@ -7558,6 +7558,12 @@ public :
         bool               compTailCallLoopOpt;
 #endif
 
+#ifdef ARM_SOFTFP
+        static const bool compUseSoftFP = true;
+#else // !ARM_SOFTFP
+        static const bool compUseSoftFP = false;
+#endif
+
         GCPollType compGCPollType;
     }
         opts;
