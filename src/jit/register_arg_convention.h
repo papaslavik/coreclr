@@ -41,6 +41,9 @@ public:
         maxFloatRegArgNum = MAX_FLOAT_REG_ARG;
 
 #ifdef _TARGET_ARM_
+#if ARM_SOFTFP
+        maxFloatRegArgNum = maxIntRegArgNum;
+#endif
         fltArgSkippedRegMask = RBM_NONE;
         anyFloatStackArgs = false;
 #endif // _TARGET_ARM_
@@ -48,8 +51,12 @@ public:
 
     // return ref to current register arg for this type
     unsigned& regArgNum(var_types type) 
-    { 
+    {
+#ifndef ARM_SOFTFP
         return varTypeIsFloating(type) ? floatRegArgNum : intRegArgNum; 
+#else
+        return intRegArgNum;
+#endif
     }
 
     // Allocate a set of contiguous argument registers. "type" is either an integer

@@ -58,7 +58,7 @@ bool InitVarDscInfo::enoughAvailRegs(var_types type, unsigned numRegs /* = 1 */)
 
     unsigned backFillCount = 0;
 
-#ifdef _TARGET_ARM_
+#if defined _TARGET_ARM_ && !defined ARM_SOFTFP
     // Check for back-filling
     if (varTypeIsFloating(type) &&              // We only back-fill the float registers
         !anyFloatStackArgs &&                   // Is it legal to back-fill? (We haven't put any FP args on the stack yet)

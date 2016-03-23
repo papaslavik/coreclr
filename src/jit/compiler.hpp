@@ -3155,7 +3155,9 @@ regNumber           genMapIntRegArgNumToRegNum(unsigned argNum)
 inline
 regNumber           genMapFloatRegArgNumToRegNum(unsigned argNum)
 {
-#ifndef _TARGET_X86_
+#ifdef ARM_SOFTFP
+    return genMapIntRegArgNumToRegNum(argNum);
+#elif !defined(_TARGET_X86_)
     assert (argNum < ArrLen(fltArgRegs));
 
     return fltArgRegs[argNum];
@@ -3262,6 +3264,9 @@ unsigned           genMapIntRegNumToRegArgNum(regNumber regNum)
 inline
 unsigned           genMapFloatRegNumToRegArgNum(regNumber regNum)
 {
+#ifdef ARM_SOFTFP
+    return genMapIntRegNumToRegArgNum(regNum);
+#endif
     assert (genRegMask(regNum) & RBM_FLTARG_REGS);
 
 #ifdef _TARGET_ARM_

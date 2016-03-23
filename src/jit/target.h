@@ -1366,7 +1366,11 @@ typedef unsigned short          regPairNoSmall; // arm: need 12 bits
   #define FIRST_ARG_STACK_OFFS    (2*REGSIZE_BYTES)   // Caller's saved FP and return address
 
   #define MAX_REG_ARG              4
+#ifndef ARM_SOFTFP
   #define MAX_FLOAT_REG_ARG        16
+#else
+  #define MAX_FLOAT_REG_ARG        0
+#endif
   #define MAX_HFA_RET_SLOTS        8
 
   #define REG_ARG_FIRST            REG_R0
@@ -1389,7 +1393,6 @@ typedef unsigned short          regPairNoSmall; // arm: need 12 bits
   #define RBM_ARG_REGS            (RBM_ARG_0|RBM_ARG_1|RBM_ARG_2|RBM_ARG_3)
   #define RBM_FLTARG_REGS         (RBM_F0|RBM_F1|RBM_F2|RBM_F3|RBM_F4|RBM_F5|RBM_F6|RBM_F7|RBM_F8|RBM_F9|RBM_F10|RBM_F11|RBM_F12|RBM_F13|RBM_F14|RBM_F15)
   #define RBM_DBL_REGS            (RBM_F0|RBM_F2|RBM_F4|RBM_F6|RBM_F8|RBM_F10|RBM_F12|RBM_F14|RBM_F16|RBM_F18|RBM_F20|RBM_F22|RBM_F24|RBM_F26|RBM_F28|RBM_F30)
-
 
   SELECTANY const regNumber fltArgRegs [] = {REG_F0, REG_F1, REG_F2, REG_F3, REG_F4, REG_F5, REG_F6, REG_F7, REG_F8, REG_F9, REG_F10, REG_F11, REG_F12, REG_F13, REG_F14, REG_F15 };
   SELECTANY const regMaskTP fltArgMasks[] = {RBM_F0, RBM_F1, RBM_F2, RBM_F3, RBM_F4, RBM_F5, RBM_F6, RBM_F7, RBM_F8, RBM_F9, RBM_F10, RBM_F11, RBM_F12, RBM_F13, RBM_F14, RBM_F15 };

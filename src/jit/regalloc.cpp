@@ -595,10 +595,12 @@ void                Compiler::raSetupArgMasks(RegState *regState)
             continue;
 
         // only process args that apply to the current register file
+#ifndef ARM_SOFTFP
         if ((argDsc->IsFloatRegType() && !info.compIsVarArgs) != regState->rsIsFloat)
         {
             continue;
         }
+#endif
 
         // Is it dead on entry ??
         // In certain cases such as when compJmpOpUsed is true,
@@ -698,8 +700,14 @@ regNumber     Compiler::raUpdateRegStateForArg(RegState *regState, LclVarDsc *ar
         }
         else
         {
+#ifndef ARM_SOFTFP
             assert(regState->rsIsFloat);
             assert(emitter::isDoubleReg(inArgReg));
+#else
+            // The same as for long for softfp abi
+            assert((inArgReg == REG_R0) || (inArgReg == REG_R2));
+            assert(!regState->rsIsFloat);
+#endif
         }
         regState->rsCalleeRegArgMaskLiveIn |= genRegMask((regNumber)(inArgReg+1));            
     }
@@ -5306,7 +5314,9 @@ regMaskTP Compiler::rpPredictAssignRegVars(regMaskTP regAvail)
     rpPredictAssignMask = regAvail;
 
     raSetupArgMasks(&codeGen->intRegState);
-#if !FEATURE_STACK_FP_X87
+#ifdef ARM_SOFTFP
+    codeGen->floatRegState.rsCalleeRegArgMaskLiveIn = RBM_NONE;
+#elif !FEATURE_STACK_FP_X87
     raSetupArgMasks(&codeGen->floatRegState);
 #endif
 
@@ -5542,7 +5552,6 @@ OK_TO_ENREGISTER:
                     if (!argDsc->lvIsRegArg)
                         continue;
 
-                    bool isFloat = argDsc->IsFloatRegType();
                     regNumber  inArgReg = argDsc->lvArgReg;
                     regMaskTP  inArgBit = genRegMask(inArgReg);
 
@@ -5552,6 +5561,10 @@ OK_TO_ENREGISTER:
                         continue;
 
                     noway_assert(argDsc->lvIsParam);
+                    bool isFloat = argDsc->IsFloatRegType();
+#ifdef ARM_SOFTFP
+                    isFloat = false;
+#endif
                     noway_assert(inArgBit & (isFloat ? RBM_FLTARG_REGS : RBM_ARG_REGS));
 
                     unsigned    locVarIndex  =  varDsc->lvVarIndex;

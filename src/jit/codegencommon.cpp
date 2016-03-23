@@ -3825,6 +3825,26 @@ void                CodeGen::genGCWriteBarrier(GenTreePtr tgt, GCInfo::WriteBarr
 #endif // !FEATURE_COUNT_GC_WRITE_BARRIERS
 }
 
+regNumber TransformRegNumForArg(CodeGen* cg, regNumber regNum, var_types destType) {
+#ifdef ARM_SOFTFP
+    // The arguments are stored in r0-r3 but our callee would
+    // expect them to be in s0-s4 registers. Do the move now.
+    if (destType == TYP_FLOAT)
+    {
+       regNumber fltRegNum = fltArgRegs[regNum - REG_R0];
+       cg->inst_RV_RV(INS_vmov_i2f, fltRegNum, regNum, TYP_FLOAT, EA_4BYTE);
+       return fltRegNum;
+    }
+    else if (destType == TYP_DOUBLE)
+    {
+        regNumber fltRegNum = fltArgRegs[regNum - REG_R0];
+        cg->inst_RV_RV_RV(INS_vmov_i2d, fltRegNum, regNum, REG_NEXT(regNum), EA_8BYTE);
+        return fltRegNum;
+    }
+#endif
+    return regNum;
+}
+
 /*
 XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
@@ -3981,10 +4001,12 @@ void            CodeGen::genFnPrologCalleeRegArgs(regNumber xtraReg,
         {
             // A struct might be passed  partially in XMM register for System V calls.
             // So a single arg might use both register files.
+#ifndef ARM_SOFTFP
             if (isFloatRegType(regType) != doingFloat)
             {
                 continue;
             }
+#endif
         }
 
         int slots = 0;
@@ -4467,10 +4489,9 @@ void            CodeGen::genFnPrologCalleeRegArgs(regNumber xtraReg,
         {
             // Since slot is typically 1, baseOffset is typically 0
             int baseOffset = (regArgTab[argNum].slot - 1) * TARGET_POINTER_SIZE;
-
             getEmitter()->emitIns_S_R(ins_Store(storeType),
                                         size,
-                                        srcRegNum,
+                                        TransformRegNumForArg(this, srcRegNum, storeType),
                                         varNum,
                                         baseOffset);                                    
 
@@ -4920,8 +4941,7 @@ void            CodeGen::genFnPrologCalleeRegArgs(regNumber xtraReg,
                 /* Move it to the new register */
 
                 emitAttr size = emitActualTypeSize(destMemType);
-                
-                getEmitter()->emitIns_R_R(ins_Copy(destMemType), size, destRegNum, regNum);
+                getEmitter()->emitIns_R_R(ins_Copy(destMemType), size, destRegNum, TransformRegNumForArg(this, regNum, destMemType));
 
                 psiMoveToReg(varNum);
             }
