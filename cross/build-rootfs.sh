@@ -3,7 +3,7 @@
 usage()
 {
     echo "Usage: $0 [BuildArch]"
-    echo "BuildArch can be: arm, arm64"
+    echo "BuildArch can be: arm, arm64, arm-softfp"
 
     exit 1
 }
@@ -37,6 +37,13 @@ for i in "$@"
         __UbuntuRepo="http://ports.ubuntu.com/"
         __UbuntuPackages="build-essential libunwind8-dev gettext symlinks liblttng-ust-dev libicu-dev"
         __MachineTriple=aarch64-linux-gnu
+        ;;
+        arm-softfp)
+        __BuildArch=arm
+        __UbuntuArch=armhf
+        __UbuntuRepo="http://ports.ubuntu.com/"
+        __UbuntuPackages="build-essential lldb-3.6-dev libunwind8-dev gettext symlinks liblttng-ust-dev libicu-dev"
+        __MachineTriple=arm-linux-gnueabihf
         ;;
         *)
         __UnprocessedBuildArgs="$__UnprocessedBuildArgs $i"
