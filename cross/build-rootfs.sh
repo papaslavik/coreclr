@@ -8,6 +8,8 @@ usage()
     exit 1
 }
 
+__UbuntuCodeName=trusty
+
 __CrossDir=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
 __InitialDir=$PWD
 __BuildArch=arm
@@ -39,11 +41,12 @@ for i in "$@"
         __MachineTriple=aarch64-linux-gnu
         ;;
         arm-softfp)
-        __BuildArch=arm
-        __UbuntuArch=armhf
+        __BuildArch=arm-softfp
+        __UbuntuArch=armel
         __UbuntuRepo="http://ports.ubuntu.com/"
         __UbuntuPackages="build-essential lldb-3.6-dev libunwind8-dev gettext symlinks liblttng-ust-dev libicu-dev"
-        __MachineTriple=arm-linux-gnueabihf
+        __MachineTriple=arm-linux-gnueabi
+        __UbuntuCodeName=precise
         ;;
         *)
         __UnprocessedBuildArgs="$__UnprocessedBuildArgs $i"
@@ -58,9 +61,10 @@ fi
 
 umount $__RootfsDir/*
 rm -rf $__RootfsDir
-qemu-debootstrap --arch $__UbuntuArch trusty $__RootfsDir $__UbuntuRepo
+qemu-debootstrap --arch $__UbuntuArch $__UbuntuCodeName $__RootfsDir $__UbuntuRepo
 cp $__CrossDir/$__BuildArch/sources.list $__RootfsDir/etc/apt/sources.list
 chroot $__RootfsDir apt-get update
 chroot $__RootfsDir apt-get -y install $__UbuntuPackages
 chroot $__RootfsDir symlinks -cr /usr
 umount $__RootfsDir/*
+

@@ -1,11 +1,11 @@
-deb http://ports.ubuntu.com/ubuntu-ports/ trusty main restricted universe
-deb-src http://ports.ubuntu.com/ubuntu-ports/ trusty main restricted universe
+deb http://ports.ubuntu.com/ubuntu-ports/ precise main restricted universe
+deb-src http://ports.ubuntu.com/ubuntu-ports/ precise main restricted universe
 
-deb http://ports.ubuntu.com/ubuntu-ports/ trusty-updates main restricted universe
-deb-src http://ports.ubuntu.com/ubuntu-ports/ trusty-updates main restricted universe
+deb http://ports.ubuntu.com/ubuntu-ports/ precise-updates main restricted universe
+deb-src http://ports.ubuntu.com/ubuntu-ports/ precise-updates main restricted universe
 
-deb http://ports.ubuntu.com/ubuntu-ports/ trusty-backports main restricted
-deb-src http://ports.ubuntu.com/ubuntu-ports/ trusty-backports main restricted
+deb http://ports.ubuntu.com/ubuntu-ports/ precise-backports main restricted
+deb-src http://ports.ubuntu.com/ubuntu-ports/ precise-backports main restricted
 
-deb http://ports.ubuntu.com/ubuntu-ports/ trusty-security main restricted universe multiverse
-deb-src http://ports.ubuntu.com/ubuntu-ports/ trusty-security main restricted universe multiverse
+deb http://ports.ubuntu.com/ubuntu-ports/ precise-security main restricted universe multiverse
+deb-src http://ports.ubuntu.com/ubuntu-ports/ precise-security main restricted universe multiverse
