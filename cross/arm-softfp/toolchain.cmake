@@ -10,8 +10,8 @@ add_compile_options(-mfpu=vfpv3)
 add_compile_options(--sysroot=${CROSS_ROOTFS})
 
 set(CROSS_LINK_FLAGS "${CROSS_LINK_FLAGS} -target arm-linux-gnueabi")
-set(CROSS_LINK_FLAGS "${CROSS_LINK_FLAGS} -B ${CROSS_ROOTFS}/usr/lib/gcc/arm-linux-gnueabi")
-set(CROSS_LINK_FLAGS "${CROSS_LINK_FLAGS} -L${CROSS_ROOTFS}/lib/arm-linux-gnueabi")
+set(CROSS_LINK_FLAGS "${CROSS_LINK_FLAGS} -B${CROSS_ROOTFS}/usr/lib/arm-linux-gnueabi")
+set(CROSS_LINK_FLAGS "${CROSS_LINK_FLAGS} -L${CROSS_ROOTFS}/lib/arm-linux-gnueabi -L${CROSS_ROOTFS}/usr/lib/arm-linux-gnueabi")
 set(CROSS_LINK_FLAGS "${CROSS_LINK_FLAGS} --sysroot=${CROSS_ROOTFS}")
 
 set(CMAKE_EXE_LINKER_FLAGS    "${CMAKE_EXE_LINKER_FLAGS}    ${CROSS_LINK_FLAGS}" CACHE STRING "" FORCE)

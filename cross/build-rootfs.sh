@@ -43,10 +43,10 @@ for i in "$@"
         arm-softfp)
         __BuildArch=arm-softfp
         __UbuntuArch=armel
-        __UbuntuRepo="http://ports.ubuntu.com/"
+        __UbuntuRepo="http://ftp.debian.org/debian/"
         __UbuntuPackages="build-essential lldb-3.6-dev libunwind8-dev gettext symlinks liblttng-ust-dev libicu-dev"
         __MachineTriple=arm-linux-gnueabi
-        __UbuntuCodeName=precise
+        __UbuntuCodeName=sid
         ;;
         *)
         __UnprocessedBuildArgs="$__UnprocessedBuildArgs $i"
