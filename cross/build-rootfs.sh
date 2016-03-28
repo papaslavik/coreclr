@@ -3,7 +3,7 @@
 usage()
 {
     echo "Usage: $0 [BuildArch]"
-    echo "BuildArch can be: arm, arm64, arm-softfp"
+    echo "BuildArch can be: arm, arm-softfp, arm64"
 
     exit 1
 }
