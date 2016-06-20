@@ -369,6 +369,8 @@ GetProcAddress(
     {
         TRACE("Symbol %s not found in module %p (named %S), dlerror message is \"%s\"\n",
               lpProcName, module, MODNAME(module), dlerror());
+        printf("Symbol %s not found in module %p (named %S), dlerror message is \"%s\"\n",
+              lpProcName, module, (wchar_t*)MODNAME(module), dlerror());
         SetLastError(ERROR_PROC_NOT_FOUND);
     }
 done:

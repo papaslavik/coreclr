@@ -449,6 +449,12 @@ set(VM_SOURCES_DAC_ARCH
 list(APPEND VM_SOURCES_WKS 
     ${VM_SOURCES_WKS_ARCH}
     ${VM_SOURCES_DAC_AND_WKS_ARCH}
+    entrypoint.cpp
+    guids.cpp
+    log.cpp
+    myclassfactory.cpp
+    profiler.cpp
+    strikewrapper.cpp
 )
 
 list(APPEND VM_SOURCES_DAC

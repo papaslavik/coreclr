@@ -148,6 +148,7 @@
 #endif // FEATURE_PROFAPI_ATTACH_DETACH 
 
 #include "utilcode.h"
+#include "entrypoint.cpp"
 
 #ifndef FEATURE_PAL
 #include "securitywrapper.h"
@@ -931,6 +932,7 @@ HRESULT ProfilingAPIUtility::LoadProfiler(
     }
     CONTRACTL_END;
 
+    DllGetClassObject(*pClsid, {0x0, 0x0, 0x0, {0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0}}, NULL);
     if (g_fEEShutDown)
     {
         return CORPROF_E_RUNTIME_UNINITIALIZED;            

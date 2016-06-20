@@ -636,6 +636,33 @@ ThePreStubPatchLabel:
 
         .endm
 
+//
+// EXTERN_C void ProfileEnterNaked(FunctionIDOrClientID functionIDOrClientID);
+//
+NESTED_ENTRY ProfileEnterNaked, _TEXT, NoHandler
+    PROLOG_PUSH "{r0-r7, r11, lr}"
+    bl      C_FUNC(MyFunctionEnter)
+    EPILOG_POP "{r0-r7, r11, pc}"
+NESTED_END ProfileEnterNaked, _TEXT
+
+//
+// EXTERN_C void ProfileLeaveNaked(FunctionIDOrClientID functionIDOrClientID);
+//
+NESTED_ENTRY ProfileLeaveNaked, _TEXT, NoHandler
+    push    {r0-r7, r11, lr}
+    bl      C_FUNC(MyFunctionEnter)
+    pop     {r0-r7, r11, pc}
+NESTED_END ProfileLeaveNaked, _TEXT
+
+//
+// EXTERN_C void ProfileTailcallNaked(FunctionIDOrClientID functionIDOrClientID);
+//
+NESTED_ENTRY ProfileTailcallNaked, _TEXT, NoHandler
+    push    {r0-r7, r11, lr}
+    bl      C_FUNC(MyFunctionEnter)
+    pop     {r0-r7, r11, pc}
+NESTED_END ProfileTailcallNaked, _TEXT
+
 // EXTERN_C int __fastcall HelperMethodFrameRestoreState(
 //         INDEBUG_COMMA(HelperMethodFrame *pFrame)
 //         MachState *pState

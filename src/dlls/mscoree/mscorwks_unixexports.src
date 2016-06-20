@@ -18,6 +18,7 @@ PAL_UnregisterModule
 CoreDllMain
 DllMain
 GetCLRRuntimeHost
+DllGetClassObject
 
 ; Win32 API and other PAL functions used by the mscorlib
 CloseHandle

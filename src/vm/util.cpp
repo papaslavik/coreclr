@@ -3480,6 +3480,21 @@ void DACNotify::DoExceptionCatcherEnterNotification(MethodDesc *MethodDescPtr, D
     }
 }
 
+void DACNotify::DoSaveStateNotification()
+{
+    CONTRACTL
+    {
+        NOTHROW;
+        GC_NOTRIGGER;
+        SO_INTOLERANT;
+        MODE_PREEMPTIVE;
+    }
+    CONTRACTL_END;
+
+    TADDR Args[1] = { SAVE_STATE_NOTIFICATION };
+    DACNotifyExceptionHelper(Args, 1);
+}
+
 #ifdef _MSC_VER
 #pragma optimize("", on)
 #pragma warning(pop)
@@ -3602,6 +3617,16 @@ BOOL DACNotify::ParseExceptionCatcherEnterNotification(TADDR Args[], TADDR& Meth
     return TRUE;
 }
 
+BOOL DACNotify::ParseSaveStateNotification(TADDR Args[])
+{
+    _ASSERTE(Args[0] == SAVE_STATE_NOTIFICATION);
+    if (Args[0] != SAVE_STATE_NOTIFICATION)
+    {
+        return FALSE;
+    }
+
+    return TRUE;
+}
 
 #if !defined(DACCESS_COMPILE) && !defined(CROSSGEN_COMPILE)
 

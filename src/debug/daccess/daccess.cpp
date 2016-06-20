@@ -4549,6 +4549,16 @@ ClrDataAccess::TranslateExceptionRecordToNotification(
             break;
         }
 
+        case DACNotify::SAVE_STATE_NOTIFICATION:
+        {
+            if (DACNotify::ParseSaveStateNotification(exInfo))
+            {
+                pubMethodInst = NULL;
+                status = S_OK;
+            }
+            break;
+        }
+
         default:
             status = E_INVALIDARG;
             break;
@@ -4601,6 +4611,9 @@ ClrDataAccess::TranslateExceptionRecordToNotification(
 
         case DACNotify::JIT_NOTIFICATION:
             notify->OnCodeGenerated(pubMethodInst);
+            break;
+        case DACNotify::SAVE_STATE_NOTIFICATION:
+            notify4->OnSaveStateReceived();
             break;
 
         case DACNotify::EXCEPTION_NOTIFICATION:
