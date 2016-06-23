@@ -534,13 +534,21 @@ void LazyMachState::unwindLazyState(LazyMachState* baseState,
 
     do
     {
+#ifdef DACCESS_COMPILE
+        HRESULT hr = DacVirtualUnwind(threadId, &ctx, &nonVolRegPtrs);
+        if (FAILED(hr))
+        {
+            DacError(hr);
+        }
+        pvControlPc = GetIP(&ctx);
+#else // DACCESS_COMPILE
 #ifndef FEATURE_PAL
         pvControlPc = Thread::VirtualUnwindCallFrame(&ctx, &nonVolRegPtrs);
 #else // !FEATURE_PAL
         PAL_VirtualUnwind(&ctx, &nonVolRegPtrs);
         pvControlPc = GetIP(&ctx);
 #endif // !FEATURE_PAL
-
+#endif // !DACCESS_COMPILE
         if (funCallDepth > 0)
         {
             --funCallDepth;
