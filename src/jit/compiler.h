@@ -1140,6 +1140,7 @@ struct fgArgTabEntry
     SYSTEMV_AMD64_CORINFO_STRUCT_REG_PASSING_DESCRIPTOR structDesc;
 #endif // defined(FEATURE_UNIX_AMD64_STRUCT_PASSING)
 
+#ifdef _TARGET_ARM_
     void SetIsHfaRegArg(bool hfaRegArg)
     {
         isHfaRegArg = hfaRegArg;
@@ -1150,10 +1151,26 @@ struct fgArgTabEntry
         isBackFilled = backFilled;
     }
 
-    bool IsBackFilled()
+    bool IsBackFilled() const
     {
         return isBackFilled;
     }
+#else // !_TARGET_ARM_
+    // To make the callers easier, we allow these calls (and the isHfaRegArg and isBackFilled data members) for all platforms.
+    void SetIsHfaRegArg(bool hfaRegArg)
+    {
+    }
+
+    void SetIsBackFilled(bool backFilled)
+    {
+    }
+
+    bool IsBackFilled() const
+    {
+        return false;
+    }
+#endif // !_TARGET_ARM_
+
 #ifdef DEBUG
     void Dump();
 #endif
@@ -2728,8 +2745,8 @@ protected :
     GenTreePtr          impFixupCallStructReturn(GenTreePtr           call,
                                                  CORINFO_CLASS_HANDLE retClsHnd);
 
-    GenTreePtr          impFixupCallLongReturn(GenTreePtr           call,
-                                               CORINFO_CLASS_HANDLE retClsHnd);
+    GenTreePtr          impInitCallReturnTypeDesc(GenTreePtr           call,
+                                                  CORINFO_CLASS_HANDLE retClsHnd);
 
     GenTreePtr          impFixupStructReturnType(GenTreePtr       op,
                                                  CORINFO_CLASS_HANDLE retClsHnd);
@@ -4703,6 +4720,7 @@ private:
     GenTreePtr          fgAssignStructInlineeToVar(GenTreePtr child, CORINFO_CLASS_HANDLE retClsHnd);
     void                fgAttachStructInlineeToAsg(GenTreePtr tree, GenTreePtr child, CORINFO_CLASS_HANDLE retClsHnd);
 #endif // defined(FEATURE_HFA) || defined(FEATURE_UNIX_AMD64_STRUCT_PASSING)
+
     static fgWalkPreFn  fgUpdateInlineReturnExpressionPlaceHolder;
 
 #ifdef DEBUG
@@ -7988,13 +8006,22 @@ public :
     // TODO-ARM64: Does this apply for ARM64 too?
     bool                compMethodReturnsMultiRegRetType() 
     {       
-#if FEATURE_MULTIREG_RET && (defined(FEATURE_UNIX_AMD64_STRUCT_PASSING) || defined(_TARGET_ARM_))
+#if FEATURE_MULTIREG_RET 
+
+#if (defined(FEATURE_UNIX_AMD64_STRUCT_PASSING) || defined(_TARGET_ARM_))
         // Methods returning a struct in two registers is considered having a return value of TYP_STRUCT.
         // Such method's compRetNativeType is TYP_STRUCT without a hidden RetBufArg
         return varTypeIsStruct(info.compRetNativeType) && (info.compRetBuffArg == BAD_VAR_NUM);
-#else 
+#elif defined(_TARGET_X86_)
+        // Longs are returned in two registers on x86
+        return varTypeIsLong(info.compRetNativeType);
+#else
+        unreached();
+#endif
+
+#else
         return false;
-#endif // FEATURE_MULTIREG_RET && (defined(FEATURE_UNIX_AMD64_STRUCT_PASSING) || defined(_TARGET_ARM_))
+#endif // FEATURE_MULTIREG_RET
 
     }
 

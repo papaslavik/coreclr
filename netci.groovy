@@ -8,6 +8,9 @@ def project = GithubProject
 // The input branch name (e.g. master)
 def branch = GithubBranchName
 def projectFolder = Utilities.getFolderName(project) + '/' + Utilities.getFolderName(branch)
+
+// Create a folder for JIT stress jobs
+folder('jitstress')
                        
 def static getOSGroup(def os) {
     def osGroupMap = ['Ubuntu':'Linux',
@@ -92,6 +95,11 @@ def static setMachineAffinity(def job, def os, def architecture) {
     }
 }
 
+def static isJITStressJob(def scenario) {
+    return Constants.jitStressModeScenarios.containsKey(scenario) ||
+           (Constants.r2rJitStressScenarios.indexOf(scenario) != -1)
+}
+
 def static isGCStressRelatedTesting(def scenario) {
     // The 'gcstress15_pri1r2r' scenario is a basic scenario.
     // Detect it and make it a GCStress related.
@@ -173,6 +181,13 @@ def static genStressModeScriptStep(def os, def stressModeName, def stressModeVar
     if (os == 'Windows_NT') {
         stepScript += "echo Creating TestEnv Script for ${stressModeName}\r\n"
         stepScript += "del ${stepScriptLocation}\r\n"
+         
+        // Timeout in ms, default is 10 minutes. For stress
+        // modes up this to 30 minutes
+        def timeout = 1800000
+
+        // Set the Timeout
+        stepScript += "set __TestTimeout=${timeout}\r\n"
         stressModeVars.each{ k, v -> 
             // Write out what we are writing to the script file
             stepScript += "echo Setting ${k}=${v}\r\n"
@@ -218,7 +233,7 @@ def static getStressModeEnvSetCmd(def os, def stressModeName) {
 
 // Calculates the name of the build job based on some typical parameters.
 //
-def static getJobName(def configuration, def architecture, def os, def scenario, def isBuildOnly) {
+def static getJobName(def configuration, def architecture, def os, def scenario, def isBuildOnly, def isLinuxEmulatorBuild = false) {
     // If the architecture is x64, do not add that info into the build name.
     // Need to change around some systems and other builds to pick up the right builds
     // to do that.
@@ -241,7 +256,12 @@ def static getJobName(def configuration, def architecture, def os, def scenario,
         case 'arm64':
         case 'arm':
             // These are cross builds
-            baseName = architecture.toLowerCase() + '_cross_' + configuration.toLowerCase() + '_' + os.toLowerCase()
+            if (isLinuxEmulatorBuild == false) {
+                baseName = architecture.toLowerCase() + '_cross_' + configuration.toLowerCase() + '_' + os.toLowerCase()
+            }
+            else {
+                baseName = architecture.toLowerCase() + '_emulator_cross_' + configuration.toLowerCase() + '_' + os.toLowerCase()
+            }
             break
         case 'x86ryujit':
             baseName = 'x86_ryujit_' + configuration.toLowerCase() + '_' + os.toLowerCase()
@@ -1025,12 +1045,12 @@ def static addTriggers(def job, def branch, def isPR, def architecture, def os, 
             assert scenario == 'default'
             switch (os) {
                 case 'Ubuntu':
-                    if (!isLinuxEmulatorBuild) {
+                    if (isLinuxEmulatorBuild == false) {
                         // Removing the regex will cause this to run on each PR.
-                        Utilities.addGithubPRTriggerForBranch(job, branch, "${os} ${architecture} Cross ${configuration} Build")
+                        Utilities.addGithubPRTriggerForBranch(job, branch, "${os} ${architecture} Cross ${configuration} Build", "(?i).*test\\W+Linux\\W+arm\\W+cross\\W+${configuration}.*")
                     }
                     else {
-                        Utilities.addGithubPRTriggerForBranch(job, branch, "Linux ARM Emulator Cross ${configuration} Build", "(?i).*test\\W+Linux\\W+arm\\W+emulator\\W+${configuration}.*")
+                        Utilities.addGithubPRTriggerForBranch(job, branch, "Linux ARM Emulator Cross ${configuration} Build")
                     }
                     break
                 default:
@@ -1237,6 +1257,11 @@ combinedScenarios.each { scenario ->
                     // The tuples (LinuxARMEmulator, other architectures) are not handled and control returns
                     def isLinuxEmulatorBuild = false
                     if (os == 'LinuxARMEmulator' && architecture == 'arm') {
+                        // Cross Builds only in Debug and Release modes allowed
+                        if ( configuration == 'Checked' ) {
+                            return
+                        }
+
                         isLinuxEmulatorBuild = true
                         os = 'Ubuntu'
                     } else if (os == 'LinuxARMEmulator') {
@@ -1404,11 +1429,12 @@ combinedScenarios.each { scenario ->
                 
                     // Calculate names
                     def lowerConfiguration = configuration.toLowerCase()
-                    def jobName = getJobName(configuration, architecture, os, scenario, isBuildOnly)
+                    def jobName = getJobName(configuration, architecture, os, scenario, isBuildOnly, isLinuxEmulatorBuild)
+                    def folderName = isJITStressJob(scenario) ? 'jitstress' : '';
                     
                     // Create the new job
-                    def newJob = job(Utilities.getFullJobName(project, jobName, isPR)) {}
-
+                    def newJob = job(Utilities.getFullJobName(project, jobName, isPR, folderName)) {}
+                    
                     setMachineAffinity(newJob, os, architecture)
 
                     // Add all the standard options
@@ -1523,7 +1549,7 @@ combinedScenarios.each { scenario ->
                                         }
 
                                         if (isLongGc(scenario)) {
-                                            gcTestArguments = '${scenario} sequential'
+                                            gcTestArguments = "${scenario} sequential"
                                         }
 
                                         runtestArguments = "${lowerConfiguration} ${arch} ${gcstressStr} ${crossgenStr} ${runcrossgentestsStr} ${runjitstressStr} ${runjitstressregsStr} ${runjitmioptsStr} ${runjitforcerelocsStr} ${gcTestArguments}"
@@ -1683,7 +1709,7 @@ combinedScenarios.each { scenario ->
                                         // Basic archiving of the build
                                         if (scenario == 'coverage')
                                         {
-                                            Utilities.addArchival(newJob, "bin/Product/**,bin/obj/Linux.x64.Release/src/**")
+                                            Utilities.addArchival(newJob, "bin/Product/**,bin/obj/**")
                                         }
                                         else {
                                             Utilities.addArchival(newJob, "bin/Product/**,bin/obj/*/tests/**/*.dylib,bin/obj/*/tests/**/*.so")
@@ -1731,7 +1757,7 @@ combinedScenarios.each { scenario ->
                                 case 'arm':
                                     // All builds for ARM architecture are run on Ubuntu currently
                                     assert os == 'Ubuntu'
-                                    if (!isLinuxEmulatorBuild) {
+                                    if (isLinuxEmulatorBuild == false) {
                                         buildCommands += """echo \"Using rootfs in /opt/arm-liux-genueabihf-root\"
                                             ROOTFS_DIR=/opt/arm-linux-genueabihf-root ./build.sh skipmscorlib arm cross verbose ${lowerConfiguration}"""
                                         
@@ -1740,35 +1766,19 @@ combinedScenarios.each { scenario ->
                                         break
                                     }
                                     else {
-                                        // Build only for Debug or Release
-                                        if ( lowerConfiguration != 'debug' && lowerConfiguration != 'release' ) {
-                                            break
-                                        }
+                                        // Make sure the build configuration is either of debug or release
+                                        assert ( lowerConfiguration == 'debug' ) || ( lowerConfiguration == 'release' )
 
                                         // Setup variables to hold emulator folder path and the rootfs mount path
                                         def armemul_path = '/opt/linux-arm-emulator'
                                         def armrootfs_mountpath = '/opt/linux-arm-emulator-root'
-                                        // Create the mount path directory if not present already
-                                        buildCommands += "if [ ! -d ${armrootfs_mountpath} ]; then sudo mkdir ${armrootfs_mountpath}; fi;"
 
-                                        // Unmount previously mounted rootfs and mount the Linux ARM emulator rootfs at /opt/linux-arm-emulator-root/
-                                        buildCommands += "if grep -qs ${armrootfs_mountpath} /proc/mounts; then sudo umount ${armrootfs_mountpath}; fi ; sudo mount ${armemul_path}/platform/rootfs-t30.ext4 ${armrootfs_mountpath}"
+                                        // Call the ARM emulator build script to cross build using the ARM emulator rootfs
+                                        buildCommands += "./tests/scripts/arm32_ci_script.sh ${armemul_path} ${armrootfs_mountpath} ${lowerConfiguration}"
 
-                                        // Export LINUX_ARM_INCPATH to hold the include paths to be used by CPLUS_INCLUDE_PATH environment variable
-                                        // Apply the changes needed to the library search paths to build for the emulator rootfs
-                                        buildCommands += """echo \"Exporting LINUX_ARM_INCPATH environment variable\"
-                                                            source ${armrootfs_mountpath}/dotnet/setenv/setenv_incpath.sh ${armrootfs_mountpath}
-
-                                                            echo \"Applying cross build patch to suit Linux ARM emulator rootfs\"
-                                                            git am < ${armrootfs_mountpath}/dotnet/setenv/coreclr_cross.patch
-
-                                                            ROOTFS_DIR=${armrootfs_mountpath} CPLUS_INCLUDE_PATH=\$LINUX_ARM_INCPATH CXXFLAGS=\$LINUX_ARM_CXXFLAGS ./build.sh arm-softfp clean cross verbose skipmscorlib clang3.5 ${lowerConfiguration}
-
-                                                            echo \"Rewinding HEAD to master code\"
-                                                            git reset --hard HEAD^"""
 
                                         // Basic archiving of the build, no pal tests
-                                        Utilities.addArchival(newJob, "/opt/linux-arm-emulator-root/home/coreclr/bin/Product/**")
+                                        Utilities.addArchival(newJob, "bin/Product/**")
                                         break
                                     }
                                 default:
@@ -1797,11 +1807,13 @@ combinedScenarios.each { scenario ->
                             }
                         }
                     }
+                    
                 } // os
             } // configuration
         } // architecture
     } // isPR
 } // scenario
+
 
 // Create the Linux/OSX/CentOS coreclr test leg for debug and release and each scenario
 combinedScenarios.each { scenario ->
@@ -1916,6 +1928,7 @@ combinedScenarios.each { scenario ->
                     def lowerConfiguration = configuration.toLowerCase()
                     def osGroup = getOSGroup(os)
                     def jobName = getJobName(configuration, architecture, os, scenario, false) + "_tst"
+                    
                     // Unless this is a coverage test run, we want to copy over the default build of coreclr.
                     def inputScenario = 'default'
                     if (scenario == 'coverage') {
@@ -2033,8 +2046,8 @@ combinedScenarios.each { scenario ->
                         }
                     }
                     
-
-                    def newJob = job(Utilities.getFullJobName(project, jobName, isPR)) {
+                    def folder = isJITStressJob(scenario) ? 'jitstress' : ''
+                    def newJob = job(Utilities.getFullJobName(project, jobName, isPR, folder)) {
                         // Add parameters for the inputs
                     
                         parameters {
@@ -2099,9 +2112,9 @@ combinedScenarios.each { scenario ->
                 --coreFxNativeBinDir=\"\$(pwd)/fx/bin/${osGroup}.${architecture}.Release\" \\
                 --crossgen --runcrossgentests""")
 
-                                // Run coreclr GC tests w/ server GC enabled & produce coverage reports
+                                // Run coreclr tests w/ server GC enabled & produce coverage reports
                                 shell("""./clr/tests/runtest.sh \\
-                --testRootDir=\"\$(pwd)/clr/bin/tests/Windows_NT.${architecture}.${configuration}/GC\" \\
+                --testRootDir=\"\$(pwd)/clr/bin/tests/Windows_NT.${architecture}.${configuration}\" \\
                 --testNativeBinDir=\"\$(pwd)/clr/bin/obj/${osGroup}.${architecture}.${configuration}/tests\" \\
                 --coreOverlayDir=\"\$(pwd)/clr/bin/tests/Windows_NT.${architecture}.${configuration}/Tests/coreoverlay\" \\
                 --useServerGC --coreclr-coverage \\
@@ -2180,7 +2193,7 @@ combinedScenarios.each { scenario ->
                     JobReport.Report.addReference(inputCoreCLRBuildName)
                     JobReport.Report.addReference(inputWindowTestsBuildName)
                     JobReport.Report.addReference(fullTestJobName)
-                    def newFlowJob = buildFlowJob(Utilities.getFullJobName(project, flowJobName, isPR)) {
+                    def newFlowJob = buildFlowJob(Utilities.getFullJobName(project, flowJobName, isPR, folder)) {
                         buildFlow("""
 // Build the input jobs in parallel
 parallel (

@@ -13,6 +13,7 @@
 #include "tls.h"
 #include "asmconstants.h"
 #include "virtualcallstub.h"
+#include "jitinterface.h"
 
 #ifndef DACCESS_COMPILE
 //-----------------------------------------------------------------------
@@ -321,10 +322,18 @@ void LazyMachState::unwindLazyState(LazyMachState* baseState,
 
 #ifndef FEATURE_PAL
         pvControlPc = Thread::VirtualUnwindCallFrame(&context, &nonVolContextPtrs);
-#else
-        PAL_VirtualUnwind(&context, &nonVolContextPtrs);
+#else // !FEATURE_PAL
+#ifdef DACCESS_COMPILE
+        HRESULT hr = DacVirtualUnwind(threadId, &context, &nonVolContextPtrs);
+        if (FAILED(hr))
+        {
+            DacError(hr);
+        }
+#else // DACCESS_COMPILE
+        PAL_VirtualUnwind(&context, &nonVolContextPtrs);  
+#endif // DACCESS_COMPILE
         pvControlPc = GetIP(&context);
-#endif
+#endif // !FEATURE_PAL
 
         if (funCallDepth > 0)
         {
@@ -531,8 +540,8 @@ void NDirectImportPrecode::Init(MethodDesc* pMD, LoaderAllocator *pLoaderAllocat
 
     int n = 0;
 
-    m_rgCode[n++] = 0x10000088; // adr x8, #16
-    m_rgCode[n++] = 0xA940310A; // ldp x10,x12,[x8] 
+    m_rgCode[n++] = 0x1000008B; // adr x11, #16
+    m_rgCode[n++] = 0xA940316A; // ldp x10,x12,[x11] 
     m_rgCode[n++] = 0xD61F0140; // br x10
 
     _ASSERTE(n+1 == _countof(m_rgCode));
@@ -2004,9 +2013,18 @@ PCODE DynamicHelpers::CreateHelperWithTwoArgs(LoaderAllocator * pAllocator, TADD
     END_DYNAMIC_HELPER_EMIT();              
 }
 
-PCODE DynamicHelpers::CreateDictionaryLookupHelper(LoaderAllocator * pAllocator, CORINFO_RUNTIME_LOOKUP * pLookup)
+PCODE DynamicHelpers::CreateDictionaryLookupHelper(LoaderAllocator * pAllocator, CORINFO_RUNTIME_LOOKUP * pLookup, DWORD dictionaryIndexAndSlot, Module * pModule)
 {
     STANDARD_VM_CONTRACT;
+
+    PCODE helperAddress = (pLookup->helper == CORINFO_HELP_RUNTIMEHANDLE_METHOD ?
+        GetEEFuncEntryPoint(JIT_GenericHandleMethodWithSlotAndModule) :
+        GetEEFuncEntryPoint(JIT_GenericHandleClassWithSlotAndModule));
+
+    GenericHandleArgs * pArgs = (GenericHandleArgs *)(void *)pAllocator->GetDynamicHelpersHeap()->AllocAlignedMem(sizeof(GenericHandleArgs), DYNAMIC_HELPER_ALIGNMENT);
+    pArgs->dictionaryIndexAndSlot = dictionaryIndexAndSlot;
+    pArgs->signature = pLookup->signature;
+    pArgs->module = (CORINFO_MODULE_HANDLE)pModule;
 
     // It's available only via the run-time helper function
     if (pLookup->indirections == CORINFO_USEHELPER)
@@ -2015,9 +2033,9 @@ PCODE DynamicHelpers::CreateDictionaryLookupHelper(LoaderAllocator * pAllocator,
 
         // X0 already contains generic context parameter
         // reuse EmitHelperWithArg for below two operations
-        // X1 <- pLookup->signature
-        // branch to pLookup->helper
-        EmitHelperWithArg(p, pAllocator, (TADDR)pLookup->signature, CEEJitInfo::getHelperFtnStatic(pLookup->helper));
+        // X1 <- pArgs
+        // branch to helperAddress
+        EmitHelperWithArg(p, pAllocator, (TADDR)pArgs, helperAddress);
 
         END_DYNAMIC_HELPER_EMIT();
     }
@@ -2104,9 +2122,9 @@ PCODE DynamicHelpers::CreateDictionaryLookupHelper(LoaderAllocator * pAllocator,
             *(DWORD*)p = 0x91000120;
             p += 4;
             // reuse EmitHelperWithArg for below two operations
-            // X1 <- pLookup->signature
-            // branch to pLookup->helper
-            EmitHelperWithArg(p, pAllocator, (TADDR)pLookup->signature, CEEJitInfo::getHelperFtnStatic(pLookup->helper));
+            // X1 <- pArgs
+            // branch to helperAddress
+            EmitHelperWithArg(p, pAllocator, (TADDR)pArgs, helperAddress);
         }     
         
         // datalabel:

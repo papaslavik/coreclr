@@ -690,18 +690,38 @@ Compiler::fgWalkResult Compiler::fgWalkTreePostRec(GenTreePtr *pTree, fgWalkData
 
     fgWalkData->parent = tree;
 
-    if  (kind & GTK_SMPOP)
+    if (kind & GTK_SMPOP)
     {
-        if  (tree->gtOp.gtOp1)
+        GenTree** op1Slot = &tree->gtOp.gtOp1;
+
+        GenTree** op2Slot;
+        if (tree->OperIsBinary())
         {
-            result = fgWalkTreePostRec<computeStack>(&tree->gtOp.gtOp1, fgWalkData);
+            if ((tree->gtFlags & GTF_REVERSE_OPS) == 0)
+            {
+                op2Slot = &tree->gtOp.gtOp2;
+            }
+            else
+            {
+                op2Slot = op1Slot;
+                op1Slot = &tree->gtOp.gtOp2;
+            }
+        }
+        else
+        {
+            op2Slot = nullptr;
+        }
+
+        if (*op1Slot != nullptr)
+        {
+            result = fgWalkTreePostRec<computeStack>(op1Slot, fgWalkData);
             if  (result == WALK_ABORT)
                 return result;
         }
 
-        if  (tree->gtGetOp2())
+        if (op2Slot != nullptr && *op2Slot != nullptr)
         {
-            result = fgWalkTreePostRec<computeStack>(&tree->gtOp.gtOp2, fgWalkData);
+            result = fgWalkTreePostRec<computeStack>(op2Slot, fgWalkData);
             if  (result == WALK_ABORT)
                 return result;
         }
@@ -6806,7 +6826,7 @@ GenTreePtr          Compiler::gtCloneExpr(GenTree * tree,
         }
         copy->gtCall.gtRetClsHnd = tree->gtCall.gtRetClsHnd;
 
-#ifdef FEATURE_UNIX_AMD64_STRUCT_PASSING
+#if FEATURE_MULTIREG_RET
         copy->gtCall.gtReturnTypeDesc = tree->gtCall.gtReturnTypeDesc;
 #endif
 

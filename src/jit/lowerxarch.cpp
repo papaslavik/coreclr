@@ -575,31 +575,6 @@ void Lowering::TreeNodeInfoInit(GenTree* stmt)
             op1 = tree->gtOp.gtOp1;
             op2 = tree->gtOp.gtOp2;
 
-            // See if we have an optimizable power of 2 which will be expanded 
-            // using instructions other than division.
-            // (fgMorph has already done magic number transforms)
-
-            if (op2->IsIntCnsFitsInI32())
-            {
-                bool isSigned = tree->OperGet() == GT_MOD || tree->OperGet() == GT_DIV;
-                ssize_t amount = op2->gtIntConCommon.IconValue();
-
-                if (isPow2(abs(amount)) && (isSigned || amount > 0)
-                    && amount != -1)
-                {
-                    MakeSrcContained(tree, op2);
-                    
-                    if (isSigned)
-                    {
-                        // we are going to use CDQ instruction so want these RDX:RAX
-                        info->setDstCandidates(l, RBM_RAX);
-                        // If possible would like to have op1 in RAX to avoid a register move
-                        op1->gtLsraInfo.setSrcCandidates(l, RBM_RAX);
-                    }
-                    break;
-                }
-            }
-
             // Amd64 Div/Idiv instruction: 
             //    Dividend in RAX:RDX  and computes
             //    Quotient in RAX, Remainder in RDX
@@ -928,6 +903,16 @@ void Lowering::TreeNodeInfoInit(GenTree* stmt)
             }
 
             // Set destination candidates for return value of the call.
+#ifdef _TARGET_X86_
+            if ((tree->gtCall.gtCallType == CT_HELPER) && (tree->gtCall.gtCallMethHnd == compiler->eeFindHelper(CORINFO_HELP_INIT_PINVOKE_FRAME)))
+            {
+                // The x86 CORINFO_HELP_INIT_PINVOKE_FRAME helper uses a custom calling convention that returns with
+                // TCB in REG_PINVOKE_TCB. AMD64/ARM64 use the standard calling convention. fgMorphCall() sets the
+                // correct argument registers.
+                info->setDstCandidates(l, RBM_PINVOKE_TCB);
+            }
+            else
+#endif // _TARGET_X86_
             if (hasMultiRegRetVal)
             {
                 assert(retTypeDesc != nullptr);
@@ -1034,7 +1019,7 @@ void Lowering::TreeNodeInfoInit(GenTree* stmt)
                     argNode = argNode->gtEffectiveVal();
                 }
 
-                // If the struct arg is wraped in CPYBLK the type of the param will be TYP_VOID.
+                // If the struct arg is wrapped in CPYBLK the type of the param will be TYP_VOID.
                 // Use the curArgTabEntry's isStruct to get whether the param is a struct.
                 if (varTypeIsStruct(argNode)
                     FEATURE_UNIX_AMD64_STRUCT_PASSING_ONLY(|| curArgTabEntry->isStruct))

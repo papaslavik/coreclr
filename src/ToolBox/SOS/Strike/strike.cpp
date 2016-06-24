@@ -6390,7 +6390,6 @@ public:
             pModuleFilename = pSlash+1;
             pSlash = _wcschr(pModuleFilename, DIRECTORY_SEPARATOR_CHAR_W);
         }
-        return S_OK;
 #ifndef FEATURE_PAL
 
         ImageInfo ii;
@@ -6411,8 +6410,8 @@ public:
         {
             return S_FALSE;
         }
-        return Status;
 #endif // FEATURE_PAL
+        return S_OK;
     }
 
     HRESULT ResolvePendingNonModuleBoundBreakpoint(__in_z WCHAR* pFilename, DWORD lineNumber, TADDR mod, SymbolReader* pSymbolReader)
@@ -9756,8 +9755,6 @@ DECLARE_API(GCRoot)
     return Status;
 }
 
-#ifndef FEATURE_PAL
-
 DECLARE_API(GCWhere)
 {
     INIT_API();
@@ -9876,6 +9873,8 @@ DECLARE_API(GCWhere)
 
     return Status;
 }
+
+#ifndef FEATURE_PAL
 
 DECLARE_API(FindRoots)
 {
@@ -11708,12 +11707,10 @@ private:
         IfFailRet(pLocalsEnum->GetCount(&cLocals));
         if (cLocals > 0 && bLocals)
         {
-#ifndef FEATURE_PAL
             bool symbolsAvailable = false;
             SymbolReader symReader;
             if(SUCCEEDED(symReader.LoadSymbols(pMD, pModule)))
                 symbolsAvailable = true;
-#endif
             ExtOut("\nLOCALS:\n");
             for (ULONG i=0; i < cLocals; i++)
             {
@@ -11721,13 +11718,11 @@ private:
                 WCHAR paramName[mdNameLen] = W("\0");
 
                 ToRelease<ICorDebugValue> pValue;
-#ifndef FEATURE_PAL
                 if(symbolsAvailable)
                 {
                     Status = symReader.GetNamedLocalVariable(pILFrame, i, paramName, mdNameLen, &pValue);
                 }
                 else
-#endif
                 {
                     ULONG cArgsFetched;
                     Status = pLocalsEnum->Next(1, &pValue, &cArgsFetched);

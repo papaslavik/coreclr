@@ -19,6 +19,7 @@
 #include "eedbginterfaceimpl.inl"
 #include "perfcounters.h"
 #include "eventtrace.h"
+#include "virtualcallstub.h"
 
 #ifndef DACCESS_COMPILE
 
@@ -4644,7 +4645,7 @@ VOID DECLSPEC_NORETURN UnwindManagedExceptionPass1(PAL_SEHException& ex, CONTEXT
     EEPOLICY_HANDLE_FATAL_ERROR(COR_E_EXECUTIONENGINE);
 }
 
-VOID DECLSPEC_NORETURN DispatchManagedException(PAL_SEHException& ex)
+VOID DECLSPEC_NORETURN DispatchManagedException(PAL_SEHException& ex, bool isHardwareException)
 {
     do
     {
@@ -4653,16 +4654,10 @@ VOID DECLSPEC_NORETURN DispatchManagedException(PAL_SEHException& ex)
             // Unwind the context to the first managed frame
             CONTEXT frameContext;
 
-            // See if the exception is a hardware one. In such case, we are either in jitted code
-            // or in a marked jit helper.
-            if (ex.ContextRecord.ContextFlags & CONTEXT_EXCEPTION_ACTIVE)
+            // If the exception is hardware exceptions, we use the exception's context record directly
+            if (isHardwareException)
             {
                 frameContext = ex.ContextRecord;
-                if (IsIPInMarkedJitHelper(GetIP(&frameContext)))
-                {
-                    // Unwind to the managed caller of the helper
-                    PAL_VirtualUnwind(&frameContext, NULL);
-                }
             }
             else
             {
@@ -4700,6 +4695,7 @@ VOID DECLSPEC_NORETURN DispatchManagedException(PAL_SEHException& ex)
         }
         catch (PAL_SEHException& ex2)
         {
+            isHardwareException = false;
             ex = ex2;
         }
 
@@ -5080,6 +5076,9 @@ BOOL PALAPI IsSafeToHandleHardwareException(PCONTEXT contextRecord, PEXCEPTION_R
         exceptionRecord->ExceptionCode == STATUS_BREAKPOINT || 
         exceptionRecord->ExceptionCode == STATUS_SINGLE_STEP ||
         (IsSafeToCallExecutionManager() && ExecutionManager::IsManagedCode(controlPc)) ||
+#ifdef _TARGET_ARM_
+        IsIPinVirtualStub(controlPc) ||  // access violation comes from DispatchStub of Interface call
+#endif
         IsIPInMarkedJitHelper(controlPc));
 }
 
@@ -5098,25 +5097,6 @@ VOID PALAPI HandleHardwareException(PAL_SEHException* ex)
             UNREACHABLE();
         }
 
-        // Create frame necessary for the exception handling
-        FrameWithCookie<FaultingExceptionFrame> fef;
-#if defined(WIN64EXCEPTIONS)
-        *((&fef)->GetGSCookiePtr()) = GetProcessGSCookie();
-#endif // WIN64EXCEPTIONS
-        {
-            GCX_COOP();     // Must be cooperative to modify frame chain.
-            CONTEXT context = ex->ContextRecord;
-            if (IsIPInMarkedJitHelper(controlPc))
-            {
-                // For JIT helpers, we need to set the frame to point to the
-                // managed code that called the helper, otherwise the stack
-                // walker would skip all the managed frames upto the next
-                // explicit frame.
-                Thread::VirtualUnwindLeafCallFrame(&context);
-            }
-            fef.InitAndLink(&context);
-        }
-
 #ifdef _AMD64_
         // It is possible that an overflow was mapped to a divide-by-zero exception. 
         // This happens when we try to divide the maximum negative value of a
@@ -5132,7 +5112,32 @@ VOID PALAPI HandleHardwareException(PAL_SEHException* ex)
         }
 #endif //_AMD64_
 
-        DispatchManagedException(*ex);
+        // Create frame necessary for the exception handling
+        FrameWithCookie<FaultingExceptionFrame> fef;
+#if defined(WIN64EXCEPTIONS)
+        *((&fef)->GetGSCookiePtr()) = GetProcessGSCookie();
+#endif // WIN64EXCEPTIONS
+        {
+            GCX_COOP();     // Must be cooperative to modify frame chain.
+            if (IsIPInMarkedJitHelper(controlPc))
+            {
+                // For JIT helpers, we need to set the frame to point to the
+                // managed code that called the helper, otherwise the stack
+                // walker would skip all the managed frames upto the next
+                // explicit frame.
+                PAL_VirtualUnwind(&ex->ContextRecord, NULL);
+                ex->ExceptionRecord.ExceptionAddress = (PVOID)GetIP(&ex->ContextRecord);
+            }
+#ifdef _TARGET_ARM_
+            else if (IsIPinVirtualStub(controlPc)) 
+            {
+                AdjustContextForVirtualStub(&ex->ExceptionRecord, &ex->ContextRecord);
+            }
+#endif
+            fef.InitAndLink(&ex->ContextRecord);
+        }
+
+        DispatchManagedException(*ex, true /* isHardwareException */);
         UNREACHABLE();
     }
     else
