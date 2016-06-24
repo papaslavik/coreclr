@@ -438,6 +438,15 @@ public:
     {
         return m_lldbservices->GetFrameOffset(offset);
     }
+
+    HRESULT SetValues(
+        ULONG Count,
+        PULONG Indices,
+        ULONG Start,
+        PULONG Values)
+    {
+        return m_lldbservices->SetValues(Count, Indices, Start, Values);
+    }
 };
  
 MIDL_INTERFACE("d4366723-44df-4bed-8c7e-4c05424f4588")

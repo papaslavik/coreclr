@@ -117,6 +117,7 @@
 
 #include "sos_md.h"
 
+#include <vector>
 #ifndef FEATURE_PAL
 
 #include "ExpressionNode.h"
@@ -124,7 +125,6 @@
 
 #include <set>
 #include <algorithm>
-#include <vector>
 
 #include "tls.h"
 
@@ -155,7 +155,6 @@ WCHAR g_mdName[mdNameLen];
 
 #ifndef FEATURE_PAL
 HMODULE g_hInstance = NULL;
-#include <vector>
 #include <algorithm>
 #endif // !FEATURE_PAL
 
@@ -6767,16 +6766,26 @@ public:
         return E_NOTIMPL;
     }
 
+    static std::vector<CROSS_PLATFORM_CONTEXT>& GetShadowContexts() {
+        static std::vector<CROSS_PLATFORM_CONTEXT> shadowContexts;
+        return shadowContexts;
+    }
+
+    STDMETHODIMP OnPopStateReceived()
+    {
+        if (GetShadowContexts().size() > 0)
+            GetShadowContexts().pop_back();
+        m_dbgStatus = DEBUG_STATUS_GO_HANDLED;
+        return S_OK;
+    }
 
     STDMETHODIMP OnSaveStateReceived()
     {
+
         HRESULT Status;
 
         m_dbgStatus = DEBUG_STATUS_GO_HANDLED;
         IfFailRet(InitCorDebugInterface());
-
-        ExtOut("\n\n\nDumping managed stack and managed variables using ICorDebug.\n");
-        ExtOut("=============================================================================\n");
 
         ToRelease<ICorDebugThread> pThread;
         ToRelease<ICorDebugThread3> pThread3;
@@ -6805,7 +6814,6 @@ public:
             if (Status == CORDBG_S_AT_END_OF_STACK)
             {
                 ExtOut("Stack walk complete.\n");
-                printf("Stack walk complete.\n");
                 break;
             }
             IfFailRet(Status);
@@ -6813,7 +6821,6 @@ public:
             if (IsInterrupt())
             {
                 ExtOut("<interrupted>\n");
-                printf("<interrupted>\n");
                 break;
             }
             
@@ -6826,7 +6833,6 @@ public:
                 (BYTE *)&context))!=S_OK)
             {
                 ExtOut("GetFrameContext failed: %lx\n",Status);
-                printf("GetFrameContext failed: %lx\n",Status);
                 break;
             }
 
@@ -6893,50 +6899,9 @@ public:
                     ExtOut("[IL Stub or LCG]\n");
                     continue;
                 }
-
-                ToRelease<ICorDebugClass> pClass;
-                ToRelease<ICorDebugModule> pModule;
-                mdMethodDef methodDef;
-                IfFailRet(pFunction->GetClass(&pClass));
-                IfFailRet(pFunction->GetModule(&pModule));
-                IfFailRet(pFunction->GetToken(&methodDef));
-
-                WCHAR wszModuleName[100];
-                ULONG32 cchModuleNameActual;
-                IfFailRet(pModule->GetName(_countof(wszModuleName), &cchModuleNameActual, wszModuleName));
-
-                ToRelease<IUnknown> pMDUnknown;
-                ToRelease<IMetaDataImport> pMD;
-                ToRelease<IMDInternalImport> pMDInternal;
-                IfFailRet(pModule->GetMetaDataInterface(IID_IMetaDataImport, &pMDUnknown));
-                IfFailRet(pMDUnknown->QueryInterface(IID_IMetaDataImport, (LPVOID*) &pMD));
-                IfFailRet(GetMDInternalFromImport(pMD, &pMDInternal));
-
-                mdTypeDef typeDef;
-                IfFailRet(pClass->GetToken(&typeDef));
-
-                // Note that we don't need to pretty print the class, as class name is
-                // already printed from GetMethodName below
-
-                CQuickBytes functionName;
-                // TODO: WARNING: GetMethodName() appears to include lots of unexercised
-                // code, as evidenced by some fundamental bugs I found.  It should either be
-                // thoroughly reviewed, or some other more exercised code path to grab the
-                // name should be used.
-                // TODO: If we do stay with GetMethodName, it should be updated to print
-                // generics properly.  Today, it does not show generic type parameters, and
-                // if any arguments have a generic type, those arguments are just shown as
-                // "__Canon", even when they're value types.
-                GetMethodName(methodDef, pMD, &functionName);
-
-                DMLOut(DMLManagedVar(W("-a"), currentFrame, (LPWSTR)functionName.Ptr()));
-                ExtOut(" (%S)\n", wszModuleName);
-
-                // if (SUCCEEDED(hrILFrame) && (bParams || bLocals))
-                // {
-                //     if(onlyShowFrame == -1 || (onlyShowFrame >= 0 && currentFrame == onlyShowFrame))
-                //         IfFailRet(PrintParameters(bParams, bLocals, pMD, typeDef, methodDef, pILFrame, pModule, varToExpand, currentFrame));
-                // }
+                GetShadowContexts().push_back(context);
+                printf("context vector size: %u\n", GetShadowContexts().size());
+                break;
             }
         }
         ExtOut("=============================================================================\n");
@@ -12846,6 +12811,23 @@ DECLARE_API(Watch)
 }
 
 #endif // FEATURE_PAL
+
+DECLARE_API(ClrBack)
+{
+    INIT_API();
+    if (!CNotification::GetShadowContexts().empty())
+    {
+        CROSS_PLATFORM_CONTEXT context = CNotification::GetShadowContexts().back();
+
+        ULONG regIdxs[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
+        // TODO: FIX THIS!
+        ARM_CONTEXT armContext = context.ArmContext;
+        ULONG values[] = {armContext.R0, armContext.R1, armContext.R2, armContext.R3, armContext.R4, armContext.R5, armContext.R6, armContext.R7, 
+                        armContext.R8, armContext.R9, armContext.R10, armContext.R11, armContext.R12, armContext.Sp, armContext.Lr, armContext.Pc };
+        g_ExtRegisters->SetValues(0x10, regIdxs, 0, values);
+    }
+    return S_OK;
+}
 
 DECLARE_API(ClrStack)
 {

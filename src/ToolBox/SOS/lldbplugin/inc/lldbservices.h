@@ -545,6 +545,12 @@ public:
 
     virtual HRESULT GetFrameOffset(
         PULONG64 offset) = 0;
+
+    virtual HRESULT SetValues(
+        ULONG Count,
+        PULONG Indices,
+        ULONG Start,
+        PULONG Values) = 0;  
 };
 
 #ifdef __cplusplus

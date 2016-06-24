@@ -36,10 +36,10 @@ DECLARE_API(my_get_frame) {
 }
 */
 
-void InitCorProfiler() {
-//  LoadModule(MAKEDLLNAME_A("coreclr"));
-//  LoadModule(MAKEDLLNAME_A("mscordaccore"));
-//  my_get_frame(new LLDBServices(), ""); 
-//  InitCorDebugInterface();
+void NotifySave() {
     DACNotify::DoSaveStateNotification();
+}
+
+void NotifyPop() {
+    DACNotify::DoPopStateNotification();
 }

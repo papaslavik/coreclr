@@ -7566,6 +7566,7 @@ EXTERN_C const IID IID_IXCLRDataExceptionNotification4;
             /* [in] */ IXCLRDataMethodInstance *catchingMethod,
             DWORD catcherNativeOffset) = 0;
         virtual HRESULT STDMETHODCALLTYPE OnSaveStateReceived() = 0;
+        virtual HRESULT STDMETHODCALLTYPE OnPopStateReceived() = 0;
         
     };
     
@@ -7597,6 +7598,8 @@ EXTERN_C const IID IID_IXCLRDataExceptionNotification4;
             /* [in] */ IXCLRDataMethodInstance *method);
         
         HRESULT ( STDMETHODCALLTYPE *OnSaveStateReceived )();
+
+        HRESULT ( STDMETHODCALLTYPE *OnPopStateReceived )();
         
         HRESULT ( STDMETHODCALLTYPE *OnProcessExecution )( 
             IXCLRDataExceptionNotification4 * This,

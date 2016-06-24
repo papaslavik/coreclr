@@ -55,13 +55,13 @@ void MyFunctionEnter(FunctionID funcID) {
 //	DebugBreak();
 //	g_pDebugInterface->JITComplete(funcID, 0);
 //	DACNotify::DoSaveStateNotification(NULL);
-	InitCorProfiler();
+	NotifySave();
 }
 void MyFunctionLeave(FunctionID funcID) {
-	LogProfilerActivity("FunctionLeave\n");
+	NotifyPop();
 }
 void MyFunctionTailCall(FunctionID funcID) {
-	LogProfilerActivity("FunctionLeave\n");
+	LogProfilerActivity("FunctionTailcall\n");
 }
 
 HRESULT STDMETHODCALLTYPE Profiler::Initialize(IUnknown *pICorProfilerInfoUnk)

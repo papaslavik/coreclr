@@ -640,27 +640,36 @@ ThePreStubPatchLabel:
 // EXTERN_C void ProfileEnterNaked(FunctionIDOrClientID functionIDOrClientID);
 //
 NESTED_ENTRY ProfileEnterNaked, _TEXT, NoHandler
-    PROLOG_PUSH "{r0-r7, r11, lr}"
-    bl      C_FUNC(MyFunctionEnter)
-    EPILOG_POP "{r0-r7, r11, pc}"
+    PROLOG_PUSH "{r0-r1, r7, lr}"
+    PROLOG_STACK_SAVE_OFFSET r7, #8
+    movw    r1, #0x1    // stub for PlatformSpecificData, to avoid triggering an assert. 
+                        // As long as we are using only v1 of the interface, we are fine.
+    bl      C_FUNC(ProfileEnter)
+    EPILOG_POP "{r0-r1, r7, pc}"
 NESTED_END ProfileEnterNaked, _TEXT
 
 //
 // EXTERN_C void ProfileLeaveNaked(FunctionIDOrClientID functionIDOrClientID);
 //
 NESTED_ENTRY ProfileLeaveNaked, _TEXT, NoHandler
-    push    {r0-r7, r11, lr}
-    bl      C_FUNC(MyFunctionEnter)
-    pop     {r0-r7, r11, pc}
+    PROLOG_PUSH "{r0-r1, r7, lr}"
+    PROLOG_STACK_SAVE_OFFSET r7, #8
+    movw    r1, #0x1    // stub for PlatformSpecificData, to avoid triggering an assert. 
+                        // As long as we are using only v1 of the interface, we are fine.
+    bl      C_FUNC(ProfileLeave)
+    EPILOG_POP "{r0-r1, r7, pc}"
 NESTED_END ProfileLeaveNaked, _TEXT
 
 //
 // EXTERN_C void ProfileTailcallNaked(FunctionIDOrClientID functionIDOrClientID);
 //
 NESTED_ENTRY ProfileTailcallNaked, _TEXT, NoHandler
-    push    {r0-r7, r11, lr}
-    bl      C_FUNC(MyFunctionEnter)
-    pop     {r0-r7, r11, pc}
+    PROLOG_PUSH "{r0-r1, r7, lr}"
+    PROLOG_STACK_SAVE_OFFSET r7, #8
+    movw    r1, #0x1    // stub for PlatformSpecificData, to avoid triggering an assert. 
+                        // As long as we are using only v1 of the interface, we are fine.
+    bl      C_FUNC(ProfileTailcall)
+    EPILOG_POP "{r0-r1, r7, pc}"
 NESTED_END ProfileTailcallNaked, _TEXT
 
 // EXTERN_C int __fastcall HelperMethodFrameRestoreState(

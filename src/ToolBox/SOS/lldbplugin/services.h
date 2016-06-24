@@ -265,6 +265,12 @@ public:
     HRESULT GetFrameOffset(
         PULONG64 offset);
 
+    HRESULT SetValues(
+        ULONG Count,
+        PULONG Indices,
+        ULONG Start,
+        PULONG Values);
+
     //----------------------------------------------------------------------------
     // LLDBServices (internal)
     //----------------------------------------------------------------------------

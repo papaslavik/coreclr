@@ -1237,7 +1237,8 @@ public:
         EXCEPTION_NOTIFICATION=5,
         GC_NOTIFICATION= 6,
         CATCH_ENTER_NOTIFICATION = 7,
-	SAVE_STATE_NOTIFICATION=8,
+        SAVE_STATE_NOTIFICATION=8,
+        POP_STATE_NOTIFICATION=9,
     };
     
     // called from the runtime
@@ -1249,6 +1250,7 @@ public:
     static void DoGCNotification(const GcEvtArgs& evtargs);
     static void DoExceptionCatcherEnterNotification(MethodDesc *MethodDescPtr, DWORD nativeOffset);
     static void DoSaveStateNotification();
+    static void DoPopStateNotification();
 
     // called from the DAC
     static int GetType(TADDR Args[]);
@@ -1260,6 +1262,7 @@ public:
     static BOOL ParseGCNotification(TADDR Args[], GcEvtArgs& evtargs);
     static BOOL ParseExceptionCatcherEnterNotification(TADDR Args[], TADDR& MethodDescPtr, DWORD& nativeOffset);
     static BOOL ParseSaveStateNotification(TADDR Args[]);
+    static BOOL ParsePopStateNotification(TADDR Args[]);
 };
 
 void DACNotifyCompilationFinished(MethodDesc *pMethodDesc);

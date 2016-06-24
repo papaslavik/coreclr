@@ -3495,6 +3495,21 @@ void DACNotify::DoSaveStateNotification()
     DACNotifyExceptionHelper(Args, 1);
 }
 
+void DACNotify::DoPopStateNotification()
+{
+    CONTRACTL
+    {
+        NOTHROW;
+        GC_NOTRIGGER;
+        SO_INTOLERANT;
+        MODE_PREEMPTIVE;
+    }
+    CONTRACTL_END;
+
+    TADDR Args[1] = { POP_STATE_NOTIFICATION };
+    DACNotifyExceptionHelper(Args, 1);
+}
+
 #ifdef _MSC_VER
 #pragma optimize("", on)
 #pragma warning(pop)
@@ -3621,6 +3636,17 @@ BOOL DACNotify::ParseSaveStateNotification(TADDR Args[])
 {
     _ASSERTE(Args[0] == SAVE_STATE_NOTIFICATION);
     if (Args[0] != SAVE_STATE_NOTIFICATION)
+    {
+        return FALSE;
+    }
+
+    return TRUE;
+}
+
+BOOL DACNotify::ParsePopStateNotification(TADDR Args[])
+{
+    _ASSERTE(Args[0] == POP_STATE_NOTIFICATION);
+    if (Args[0] != POP_STATE_NOTIFICATION)
     {
         return FALSE;
     }

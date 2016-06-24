@@ -4558,7 +4558,15 @@ ClrDataAccess::TranslateExceptionRecordToNotification(
             }
             break;
         }
-
+        case DACNotify::POP_STATE_NOTIFICATION:
+        {
+            if (DACNotify::ParsePopStateNotification(exInfo))
+            {
+                pubMethodInst = NULL;
+                status = S_OK;
+            }
+            break;
+        }
         default:
             status = E_INVALIDARG;
             break;
@@ -4615,7 +4623,9 @@ ClrDataAccess::TranslateExceptionRecordToNotification(
         case DACNotify::SAVE_STATE_NOTIFICATION:
             notify4->OnSaveStateReceived();
             break;
-
+        case DACNotify::POP_STATE_NOTIFICATION:
+            notify4->OnPopStateReceived();
+            break;
         case DACNotify::EXCEPTION_NOTIFICATION:
             if (notify2)
             {
