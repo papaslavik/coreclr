@@ -1631,6 +1631,15 @@ LLDBServices::GetFrameOffset(
     return S_OK;
 }
 
+HRESULT 
+LLDBServices::SetValues(
+        ULONG Count,
+        PULONG Indices,
+        ULONG Start,
+        PULONG Values) {
+    return S_OK;
+}
+
 //----------------------------------------------------------------------------
 // Helper functions
 //----------------------------------------------------------------------------

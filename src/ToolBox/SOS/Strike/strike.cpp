@@ -118,6 +118,7 @@
 #include "sos_md.h"
 
 #include <vector>
+#include <memory>
 #ifndef FEATURE_PAL
 
 #include "ExpressionNode.h"
@@ -6390,6 +6391,7 @@ public:
             pModuleFilename = pSlash+1;
             pSlash = _wcschr(pModuleFilename, DIRECTORY_SEPARATOR_CHAR_W);
         }
+        return S_OK;
 #ifndef FEATURE_PAL
 
         ImageInfo ii;
@@ -6410,8 +6412,8 @@ public:
         {
             return S_FALSE;
         }
+        return Status;
 #endif // FEATURE_PAL
-        return S_OK;
     }
 
     HRESULT ResolvePendingNonModuleBoundBreakpoint(__in_z WCHAR* pFilename, DWORD lineNumber, TADDR mod, SymbolReader* pSymbolReader)
@@ -6671,6 +6673,29 @@ BOOL g_fAllowJitOptimization = TRUE;
 // execution is about to enter a catch clause
 BOOL g_stopOnNextCatch = FALSE;
 
+class CheckpointData {
+public:
+    CROSS_PLATFORM_CONTEXT context;
+    PBYTE stackBuffer;
+    ULONG bufferSize;
+    CheckpointData()
+        : stackBuffer(nullptr),
+          bufferSize(0)
+    {}
+    
+    ~CheckpointData() 
+    {
+        free(stackBuffer);
+    }
+};
+
+typedef std::vector<std::unique_ptr<CheckpointData>> CheckpointVector;
+
+static CheckpointVector& GetShadowContexts() {
+    static CheckpointVector shadowContexts;
+    return shadowContexts;
+}
+
 // According to the latest debuggers these callbacks will not get called
 // unless the user (or an extension, like SOS :-)) had previously enabled
 // clrn with "sxe clrn".
@@ -6765,11 +6790,6 @@ public:
         return E_NOTIMPL;
     }
 
-    static std::vector<CROSS_PLATFORM_CONTEXT>& GetShadowContexts() {
-        static std::vector<CROSS_PLATFORM_CONTEXT> shadowContexts;
-        return shadowContexts;
-    }
-
     STDMETHODIMP OnPopStateReceived()
     {
         if (GetShadowContexts().size() > 0)
@@ -6805,10 +6825,11 @@ public:
         ExtOut("%-8s %-8s %s\n", "Child SP", "IP", "Call Site");
     #endif
 
-        int currentFrame = -1;
-        for (Status = S_OK; ; Status = pStackWalk->Next())
+        std::unique_ptr<CheckpointData> checkpoint(new CheckpointData());
+
+        int currentFrame = 0;
+        for (Status = S_OK; currentFrame < 2; Status = pStackWalk->Next())
         {
-            currentFrame++;
 
             if (Status == CORDBG_S_AT_END_OF_STACK)
             {
@@ -6838,6 +6859,14 @@ public:
             // First find the info for the Frame object, if the current frame has an associated clr!Frame.
             CLRDATA_ADDRESS sp = GetSP(context);
             CLRDATA_ADDRESS ip = GetIP(context);
+
+            if (currentFrame == 1) {
+                CLRDATA_ADDRESS oldSp = GetSP(checkpoint->context);
+                checkpoint->stackBuffer = new NOTHROW BYTE[sp - oldSp];
+                memset(checkpoint->stackBuffer, 0, sp-oldSp);
+                g_ExtData->ReadVirtual(oldSp, checkpoint->stackBuffer, sp-oldSp, &checkpoint->bufferSize);
+                break;
+            }
 
             ToRelease<ICorDebugFrame> pFrame;
             IfFailRet(pStackWalk->GetFrame(&pFrame));
@@ -6898,13 +6927,13 @@ public:
                     ExtOut("[IL Stub or LCG]\n");
                     continue;
                 }
-                GetShadowContexts().push_back(context);
-                printf("context vector size: %u\n", GetShadowContexts().size());
-                break;
+                checkpoint->context = context;
+                ++currentFrame;
             }
         }
         ExtOut("=============================================================================\n");
 
+        GetShadowContexts().push_back(std::move(checkpoint));
 #ifdef FEATURE_PAL
         // Temporary until we get a process exit notification plumbed from lldb
         UninitCorDebugInterface();
@@ -9755,6 +9784,8 @@ DECLARE_API(GCRoot)
     return Status;
 }
 
+#ifndef FEATURE_PAL
+
 DECLARE_API(GCWhere)
 {
     INIT_API();
@@ -9873,8 +9904,6 @@ DECLARE_API(GCWhere)
 
     return Status;
 }
-
-#ifndef FEATURE_PAL
 
 DECLARE_API(FindRoots)
 {
@@ -11707,10 +11736,12 @@ private:
         IfFailRet(pLocalsEnum->GetCount(&cLocals));
         if (cLocals > 0 && bLocals)
         {
+#ifndef FEATURE_PAL
             bool symbolsAvailable = false;
             SymbolReader symReader;
             if(SUCCEEDED(symReader.LoadSymbols(pMD, pModule)))
                 symbolsAvailable = true;
+#endif
             ExtOut("\nLOCALS:\n");
             for (ULONG i=0; i < cLocals; i++)
             {
@@ -11718,11 +11749,13 @@ private:
                 WCHAR paramName[mdNameLen] = W("\0");
 
                 ToRelease<ICorDebugValue> pValue;
+#ifndef FEATURE_PAL
                 if(symbolsAvailable)
                 {
                     Status = symReader.GetNamedLocalVariable(pILFrame, i, paramName, mdNameLen, &pValue);
                 }
                 else
+#endif
                 {
                     ULONG cArgsFetched;
                     Status = pLocalsEnum->Next(1, &pValue, &cArgsFetched);
@@ -12810,16 +12843,21 @@ DECLARE_API(Watch)
 DECLARE_API(ClrBack)
 {
     INIT_API();
-    if (!CNotification::GetShadowContexts().empty())
+    if (!GetShadowContexts().empty())
     {
-        CROSS_PLATFORM_CONTEXT context = CNotification::GetShadowContexts().back();
+        std::unique_ptr<CheckpointData>& checkpoint = GetShadowContexts().back();
 
         ULONG regIdxs[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
         // TODO: FIX THIS!
-        ARM_CONTEXT armContext = context.ArmContext;
+        ARM_CONTEXT armContext = checkpoint->context.ArmContext;
         ULONG values[] = {armContext.R0, armContext.R1, armContext.R2, armContext.R3, armContext.R4, armContext.R5, armContext.R6, armContext.R7, 
                         armContext.R8, armContext.R9, armContext.R10, armContext.R11, armContext.R12, armContext.Sp, armContext.Lr, armContext.Pc };
         g_ExtRegisters->SetValues(0x10, regIdxs, 0, values);
+
+
+        CLRDATA_ADDRESS oldSp = GetSP(checkpoint->context);
+        ULONG bytesWritten = 0;
+        g_ExtData->WriteVirtual(oldSp, checkpoint->stackBuffer, checkpoint->bufferSize, &bytesWritten);
     }
     return S_OK;
 }

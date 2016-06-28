@@ -10,6 +10,9 @@ EXPORTS
     ClrStack
     clrstack=ClrStack
     CLRStack=ClrStack
+    ClrBack
+    clrback=ClrBack
+    CLRBack=ClrBack
     DumpArray
     da=DumpArray
     dumparray=DumpArray
