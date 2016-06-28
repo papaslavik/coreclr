@@ -560,7 +560,11 @@ public:
     regMaskTP gtGetRegMask() const;
 
     unsigned            gtFlags;        // see GTF_xxxx below
-    
+
+#if defined(DEBUG)
+    unsigned            gtDebugFlags;   // see GTF_DEBUG_xxx below
+#endif // defined(DEBUG)
+
     ValueNumPair        gtVNPair;
 
     regMaskSmall        gtRsvdRegs;     // set of fixed trashed  registers
@@ -660,16 +664,6 @@ public:
     #define GTF_SPILLED_OP2     0x00000200  //   op2 has been spilled
 #endif // LEGACY_BACKEND
 
-#ifdef DEBUG
-#ifndef LEGACY_BACKEND
-    #define GTF_MORPHED         0x00000200  // the node has been morphed (in the global morphing phase)
-#else // LEGACY_BACKEND
-    // For LEGACY_BACKEND, 0x00000200 is in use, but we can use the same value as GTF_SPILLED since we
-    // don't call gtSetEvalOrder(), which clears GTF_MORPHED, after GTF_SPILLED has been set.
-    #define GTF_MORPHED         0x00000080  // the node has been morphed (in the global morphing phase)
-#endif // LEGACY_BACKEND
-#endif // DEBUG
-
     #define GTF_REDINDEX_CHECK  0x00000100  // Used for redundant range checks. Disjoint from GTF_SPILLED_OPER
 
     #define GTF_ZSF_SET         0x00000400  // the zero(ZF) and sign(SF) flags set to the operand
@@ -687,15 +681,7 @@ public:
     #define GTF_DONT_CSE        0x00004000  // don't bother CSE'ing this expr
     #define GTF_COLON_COND      0x00008000  // this node is conditionally executed (part of ? :)
 
-#if defined(DEBUG) && SMALL_TREE_NODES
-    #define GTF_NODE_LARGE      0x00010000
-    #define GTF_NODE_SMALL      0x00020000
-
-    // Property of the node itself, not the gtOper
-    #define GTF_NODE_MASK       (GTF_COLON_COND | GTF_MORPHED   | GTF_NODE_SMALL | GTF_NODE_LARGE )
-#else
     #define GTF_NODE_MASK       (GTF_COLON_COND)
-#endif
 
     #define GTF_BOOLEAN         0x00040000  // value is known to be 0/1
 
@@ -716,9 +702,7 @@ public:
                                             // code to produce the value.
                                             // It is currently used only on constant nodes.
                                             // It CANNOT be set on var (GT_LCL*) nodes, or on indir (GT_IND or GT_STOREIND) nodes, since
-                                            // 1) it is not needed for lclVars and is highly unlikely to be useful for indir nodes, and
-                                            // 2) it conflicts with GTFD_VAR_CSE_REF for lclVars (though this is debug only, and
-                                            //    GTF_IND_ARR_INDEX for indirs.
+                                            // it is not needed for lclVars and is highly unlikely to be useful for indir nodes
 
     //---------------------------------------------------------------------
     //  The following flags can be used only with a small set of nodes, and
@@ -764,10 +748,6 @@ public:
     #define GTF_CALL_REG_SAVE   0x01000000  // GT_CALL    -- This call preserves all integer regs
                                             // For additional flags for GT_CALL node see GTF_CALL_M_
 
-#ifdef DEBUG
-    #define GTFD_VAR_CSE_REF    0x00800000  // GT_LCL_VAR -- This is a CSE LCL_VAR node
-#endif
-
     #define GTF_NOP_DEATH         0x40000000  // GT_NOP     -- operand dies here
 
     #define GTF_FLD_NULLCHECK     0x80000000  // GT_FIELD -- need to nullcheck the "this" pointer
@@ -785,8 +765,7 @@ public:
     #define GTF_IND_UNALIGNED     0x02000000  // GT_IND   -- the load or store is unaligned (we assume worst case alignment of 1 byte) 
     #define GTF_IND_INVARIANT     0x01000000  // GT_IND   -- the target is invariant (a prejit indirection)
     #define GTF_IND_ARR_LEN       0x80000000  // GT_IND   -- the indirection represents an array length (of the REF contribution to its argument).
-    #define GTF_IND_ARR_INDEX     0x00800000  // GT_IND   -- the indirection represents an (SZ) array index (this shares the same value as GTFD_VAR_CSE_REF,
-                                              //             but is disjoint because a GT_LCL_VAR is never an ind (GT_IND or GT_STOREIND)
+    #define GTF_IND_ARR_INDEX     0x00800000  // GT_IND   -- the indirection represents an (SZ) array index
 
     #define GTF_IND_FLAGS         (GTF_IND_VOLATILE|GTF_IND_REFARR_LAYOUT|GTF_IND_TGTANYWHERE|GTF_IND_NONFAULTING|\
                                    GTF_IND_TLS_REF|GTF_IND_UNALIGNED|GTF_IND_INVARIANT|GTF_IND_ARR_INDEX)
@@ -856,6 +835,18 @@ public:
     #define GTF_STMT_SKIP_LOWER 0x10000000  // GT_STMT    -- Skip lowering if we already lowered an embedded stmt.
 
     //----------------------------------------------------------------
+
+#if defined(DEBUG)
+    #define GTF_DEBUG_NONE            0x00000000  // No debug flags.
+
+    #define GTF_DEBUG_NODE_MORPHED    0x00000001  // the node has been morphed (in the global morphing phase)
+    #define GTF_DEBUG_NODE_SMALL      0x00000002
+    #define GTF_DEBUG_NODE_LARGE      0x00000004
+
+    #define GTF_DEBUG_NODE_MASK       0x00000007  // These flags are all node (rather than operation) properties.
+
+    #define GTF_DEBUG_VAR_CSE_REF     0x00800000  // GT_LCL_VAR -- This is a CSE LCL_VAR node
+#endif // defined(DEBUG)
 
     GenTreePtr          gtNext;
     GenTreePtr          gtPrev;
@@ -1623,7 +1614,7 @@ public:
     bool                        gtRequestSetFlags   ();
 #ifdef DEBUG
     bool                        gtIsValid64RsltMul  ();
-    static int                  gtDispFlags         (unsigned flags);
+    static int                  gtDispFlags         (unsigned flags, unsigned debugFlags);
 #endif
 
     // cast operations 
@@ -2395,8 +2386,7 @@ enum class InlineObservation;
 struct ReturnTypeDesc
 {
 private:
-    var_types m_regType0;
-    var_types m_regType1;
+    var_types m_regType[MAX_RET_REG_COUNT];
 
 #ifdef DEBUG
     bool m_inited;
@@ -2408,15 +2398,16 @@ public:
         Reset();
     }
 
-    // Initialize type descriptor given its type handle
-    void Initialize(Compiler* comp, CORINFO_CLASS_HANDLE retClsHnd);
+    // Initialize the return type descriptor given its type handle
+    void InitializeReturnType(Compiler* comp, CORINFO_CLASS_HANDLE retClsHnd);
 
     // Reset type descriptor to defaults
     void Reset()
     {
-        m_regType0 = TYP_UNKNOWN;
-        m_regType1 = TYP_UNKNOWN;
-
+        for (unsigned i = 0; i < MAX_RET_REG_COUNT; ++i)
+        {
+            m_regType[i] = TYP_UNKNOWN;
+        }
 #ifdef DEBUG
         m_inited = false;
 #endif
@@ -2436,20 +2427,24 @@ public:
         assert(m_inited);
 
         int regCount = 0;
-        if (m_regType0 != TYP_UNKNOWN)
+        for (unsigned i = 0; i < MAX_RET_REG_COUNT; ++i)
         {
-            ++regCount;
-
-            if (m_regType1 != TYP_UNKNOWN)
+            if (m_regType[i] == TYP_UNKNOWN)
             {
-                ++regCount;
+                break;
             }
+            // otherwise
+            regCount++;
         }
-        else
+
+#ifdef DEBUG
+        // Any remaining elements in m_regTypes[] should also be TYP_UNKNOWN
+        for (unsigned i = regCount+1; i < MAX_RET_REG_COUNT; ++i)
         {
-            // If regType0 is TYP_UNKNOWN then regType1 must also be TYP_UNKNOWN.
-            assert(m_regType1 == TYP_UNKNOWN);
+            assert(m_regType[i] == TYP_UNKNOWN);
         }
+#endif        
+
         return regCount;
     }
 
@@ -2463,9 +2458,19 @@ public:
     // Return Value:
     //    Returns true if the type is returned in multiple return registers.
     //    False otherwise.
+    // Note that we only have to examine the first two values to determine this
+    //
     bool IsMultiRegRetType() const
     {
-        return GetReturnRegCount() > 1;
+        if (MAX_RET_REG_COUNT < 2)
+        {
+            return false;
+        }
+        else
+        {
+            return ((m_regType[0] != TYP_UNKNOWN) &&
+                    (m_regType[1] != TYP_UNKNOWN));
+        }
     }
 
     //--------------------------------------------------------------------------
@@ -2477,21 +2482,14 @@ public:
     //
     // Return Value:
     //    var_type of the return register specified by its index.
-    //    Return TYP_UNKNOWN if index > number of return registers.
+    //    asserts if the index does not have a valid register return type.
+    
     var_types GetReturnRegType(unsigned index)
     {
-        assert(index < GetReturnRegCount());
+        var_types result = m_regType[index];
+        assert(result != TYP_UNKNOWN);
 
-        if (index == 0)
-        {
-            return m_regType0;
-        }
-        else if (index == 1)
-        {
-            return m_regType1;
-        }
-
-        return TYP_UNKNOWN;
+        return result;
     }
 
     // Get ith ABI return register 
@@ -4051,8 +4049,6 @@ struct GenTreeCopyOrReload : public GenTreeUnOp
     // Return Value:
     //    None.
     //
-    // TODO-ARM: Implement this routine for Arm64 and Arm32
-    // TODO-X86: Implement this routine for x86
     void SetRegNumByIdx(regNumber reg, unsigned idx)
     {
         assert(idx < MAX_RET_REG_COUNT);
@@ -4061,7 +4057,7 @@ struct GenTreeCopyOrReload : public GenTreeUnOp
         {
             gtRegNum = reg;
         }
-#ifdef FEATURE_UNIX_AMD64_STRUCT_PASSING
+#if FEATURE_MULTIREG_RET
         else
         {
             gtOtherRegs[idx - 1] = reg;
