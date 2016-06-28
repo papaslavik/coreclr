@@ -19,6 +19,7 @@ private:
     DWORD_PTR GetExpression(lldb::SBFrame& frame, lldb::SBError& error, PCSTR exp);
     void GetContextFromFrame(lldb::SBFrame& frame, DT_CONTEXT *dtcontext);
     DWORD_PTR GetRegister(lldb::SBFrame& frame, const char *name);
+    HRESULT GetNameByIndex(ULONG index, char *name, size_t namelen);
 
     lldb::SBProcess GetCurrentProcess();
     lldb::SBThread GetCurrentThread();
@@ -252,6 +253,10 @@ public:
     // IDebugRegisters
     //----------------------------------------------------------------------------
 
+    HRESULT GetIndexByName(
+        PCSTR name,
+        PULONG index);
+
     HRESULT GetValueByName(
         PCSTR name,
         PDWORD_PTR debugValue);
@@ -264,6 +269,10 @@ public:
 
     HRESULT GetFrameOffset(
         PULONG64 offset);
+
+    HRESULT SetValue(
+        ULONG Register,
+        PULONG Value);
 
     HRESULT SetValues(
         ULONG Count,

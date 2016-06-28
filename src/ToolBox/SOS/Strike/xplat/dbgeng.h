@@ -411,6 +411,14 @@ public:
     //----------------------------------------------------------------------------
 
     HRESULT
+    GetIndexByName(
+        PCSTR name,
+        PULONG debugValue)
+    {
+        return m_lldbservices->GetIndexByName(name, debugValue);
+    }
+
+    HRESULT
     GetValueByName(
         PCSTR name,
         PDWORD_PTR debugValue)
@@ -437,6 +445,13 @@ public:
         PULONG64 offset)
     {
         return m_lldbservices->GetFrameOffset(offset);
+    }
+
+    HRESULT SetValue(
+        ULONG Register,
+        PULONG Value)
+    {
+        return m_lldbservices->SetValue(Register, Value);
     }
 
     HRESULT SetValues(

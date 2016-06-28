@@ -524,6 +524,11 @@ public:
     // IDebugRegister
     //------------------------------------------------
 
+    virtual HRESULT GetIndexByName(
+        PCSTR name,
+        PULONG index
+        ) = 0;
+
     // This is the combination of dbgeng's GetIndexByName and GetValue and not
     // actually part of the dbgeng's IDebugRegister interface.
     virtual HRESULT GetValueByName(
@@ -545,6 +550,10 @@ public:
 
     virtual HRESULT GetFrameOffset(
         PULONG64 offset) = 0;
+
+    virtual HRESULT SetValue(
+        ULONG regIndex,
+        PULONG Value) = 0;
 
     virtual HRESULT SetValues(
         ULONG Count,

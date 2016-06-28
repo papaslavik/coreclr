@@ -1564,6 +1564,36 @@ LLDBServices::GetRegister(
 //----------------------------------------------------------------------------
 
 HRESULT
+LLDBServices::GetIndexByName(
+    PCSTR name,
+    PULONG index)
+{
+    lldb::SBValueList regSets;
+    lldb::SBFrame frame = GetCurrentFrame();
+    if (frame.IsValid())
+    {
+        regSets = frame.GetRegisters();
+        uint32_t regSetsCnt = regSets.GetSize();
+        ULONG regIndex = 0;
+        for (int32_t rs = 0; rs < regSetsCnt; rs++)
+        {
+            lldb::SBValue regSet = regSets.GetValueAtIndex(rs);
+            uint32_t regCnt = regSet.GetNumChildren();
+            for (int32_t r = 0; r < regCnt; r++, regIndex++) {
+                lldb::SBValue reg = regSet.GetChildAtIndex(r);
+                const char *regName = reg.GetName();
+                if (!strcmp(regName, name))
+                {
+                    *index = regIndex;
+                    return S_OK;
+                }
+            }
+        }
+    }
+    return E_FAIL;
+}
+
+HRESULT
 LLDBServices::GetValueByName(
     PCSTR name,
     PDWORD_PTR debugValue)
@@ -1631,12 +1661,46 @@ LLDBServices::GetFrameOffset(
     return S_OK;
 }
 
-HRESULT 
+HRESULT
+LLDBServices::SetValue(
+    ULONG regIndex,
+    PULONG regValue)
+{
+    #define REGISTER_NAME_LENGTH 16
+    char regName[REGISTER_NAME_LENGTH];
+    GetNameByIndex(regIndex, regName, REGISTER_NAME_LENGTH);
+    #undef REGISTER_NAME_LENGTH
+
+    #define DEBUGGER_COMMAND_LENGTH 64
+    char debuggerCommand[DEBUGGER_COMMAND_LENGTH];
+    sprintf(debuggerCommand, "register write %s 0x%x", regName, *regValue);
+    m_debugger.HandleCommand(debuggerCommand);
+    #undef DEBUGGER_COMMAND_LENGTH
+
+    return S_OK;
+}
+
+HRESULT
 LLDBServices::SetValues(
-        ULONG Count,
-        PULONG Indices,
-        ULONG Start,
-        PULONG Values) {
+    ULONG count,
+    PULONG indices,
+    ULONG start,
+    PULONG values)
+{
+    if (indices)
+    {
+        for (size_t i = 0; i < count; i++)
+        {
+            SetValue(indices[i], values + i);
+        }
+    }
+    else
+    {
+        for (size_t i = 0; i < count; i++)
+        {
+            SetValue(start + i, values + i);
+        }
+    }
     return S_OK;
 }
 
@@ -1698,4 +1762,36 @@ LLDBServices::GetCurrentFrame()
     }
 
     return frame;
+}
+
+HRESULT
+LLDBServices::GetNameByIndex(ULONG index, char *name, size_t namelen)
+{
+    lldb::SBValueList regSets;
+    lldb::SBFrame frame = GetCurrentFrame();
+    if (frame.IsValid())
+    {
+        regSets = frame.GetRegisters();
+        uint32_t regSetsCnt = regSets.GetSize();
+        ULONG regIndex = 0;
+        for (int32_t rs = 0; rs < regSetsCnt; rs++)
+        {
+            lldb::SBValue regSet = regSets.GetValueAtIndex(rs);
+            uint32_t regCnt = regSet.GetNumChildren();
+            uint32_t r;
+            for (r = 0; r < regCnt && regIndex < index; r++, regIndex++) {
+            }
+            if (regIndex == index)
+            {
+                lldb::SBValue reg = regSet.GetChildAtIndex(r);
+                const char *regName = reg.GetName();
+                if (strlen(regName) < namelen)
+                {
+                    strcpy(name, regName);
+                    return S_OK;
+                }
+            }
+        }
+    }
+    return E_FAIL;
 }
