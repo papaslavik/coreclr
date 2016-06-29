@@ -653,13 +653,13 @@ NESTED_END ProfileEnterNaked, _TEXT
 // EXTERN_C void ProfileLeaveNaked(FunctionIDOrClientID functionIDOrClientID);
 //
 NESTED_ENTRY ProfileLeaveNaked, _TEXT, NoHandler
-    PROLOG_PUSH "{r0-r1, r7, lr}"
-    PROLOG_STACK_SAVE_OFFSET r7, #8
+    PROLOG_PUSH "{r2-r7, lr}"
+    PROLOG_STACK_SAVE_OFFSET r7, #20
     movw    r1, #0x1    // stub for PlatformSpecificData, to avoid triggering an assert. 
                         // As long as we are using only v1 of the interface, we are fine.
     bl      C_FUNC(ProfileLeave)
-    EPILOG_STACK_RESTORE_OFFSET r7, #8
-    EPILOG_POP "{r0-r1, r7, pc}"
+    EPILOG_STACK_RESTORE_OFFSET r7, #20
+    EPILOG_POP "{r2-r7, pc}"
 NESTED_END ProfileLeaveNaked, _TEXT
 
 //

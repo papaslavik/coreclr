@@ -71,8 +71,8 @@ HRESULT STDMETHODCALLTYPE Profiler::Initialize(IUnknown *pICorProfilerInfoUnk)
 	HRESULT hr = pICorProfilerInfoUnk->QueryInterface(IID_ICorProfilerInfo3, (void **) &info);
 	if (hr == S_OK && info != NULL)
 	{
-		info->SetEventMask(COR_PRF_MONITOR_JIT_COMPILATION | COR_PRF_MONITOR_ASSEMBLY_LOADS | COR_PRF_MONITOR_CLASS_LOADS | COR_PRF_MONITOR_ENTERLEAVE | COR_PRF_MONITOR_GC);
-		info->SetEnterLeaveFunctionHooks(MyFunctionEnter, MyFunctionLeave, MyFunctionTailCall);
+		info->SetEventMask(COR_PRF_MONITOR_ENTERLEAVE);
+		info->SetEnterLeaveFunctionHooks(MyFunctionEnter, MyFunctionLeave, NULL);
 		info->Release();
 		info = NULL;
 	}

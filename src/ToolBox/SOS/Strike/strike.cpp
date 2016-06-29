@@ -6872,30 +6872,13 @@ public:
             IfFailRet(pStackWalk->GetFrame(&pFrame));
             if (Status == S_FALSE)
             {
-                DMLOut("%p %s [NativeStackFrame]\n", SOS_PTR(sp), DMLIP(ip));
                 continue;
             }
-
-            // TODO: What about internal frames preceding the above native stack frame? 
-            // Should I just exclude the above native stack frame from the output?
-            // TODO: Compare caller frame (instead of current frame) against internal frame,
-            // to deal with issues of current frame's current SP being closer to leaf than
-            // EE Frames it pushes.  By "caller" I mean not just managed caller, but the
-            // very next non-internal frame dbi would return (native or managed). OR...
-            // perhaps I should use GetStackRange() instead, to see if the internal frame
-            // appears leafier than the base-part of the range of the currently iterated
-            // stack frame?  I think I like that better.
-            _ASSERTE(pFrame != NULL);
-            IfFailRet(internalFrameManager.PrintPrecedingInternalFrames(pFrame));
-
-            // Print the stack and instruction pointers.
-            DMLOut("%p %s ", SOS_PTR(sp), DMLIP(ip));
 
             ToRelease<ICorDebugRuntimeUnwindableFrame> pRuntimeUnwindableFrame;
             Status = pFrame->QueryInterface(IID_ICorDebugRuntimeUnwindableFrame, (LPVOID *) &pRuntimeUnwindableFrame);
             if (SUCCEEDED(Status))
             {
-                ExtOut("[RuntimeUnwindableFrame]\n");
                 continue;
             }
 
@@ -6929,15 +6912,52 @@ public:
                 }
                 checkpoint->context = context;
                 ++currentFrame;
+
+                ToRelease<ICorDebugClass> pClass;
+                ToRelease<ICorDebugModule> pModule;
+                mdMethodDef methodDef;
+                IfFailRet(pFunction->GetClass(&pClass));
+                IfFailRet(pFunction->GetModule(&pModule));
+                IfFailRet(pFunction->GetToken(&methodDef));
+
+                WCHAR wszModuleName[100];
+                ULONG32 cchModuleNameActual;
+                IfFailRet(pModule->GetName(_countof(wszModuleName), &cchModuleNameActual, wszModuleName));
+
+                ToRelease<IUnknown> pMDUnknown;
+                ToRelease<IMetaDataImport> pMD;
+                ToRelease<IMDInternalImport> pMDInternal;
+                IfFailRet(pModule->GetMetaDataInterface(IID_IMetaDataImport, &pMDUnknown));
+                IfFailRet(pMDUnknown->QueryInterface(IID_IMetaDataImport, (LPVOID*) &pMD));
+                IfFailRet(GetMDInternalFromImport(pMD, &pMDInternal));
+
+                mdTypeDef typeDef;
+                IfFailRet(pClass->GetToken(&typeDef));
+
+                // Note that we don't need to pretty print the class, as class name is
+                // already printed from GetMethodName below
+
+                CQuickBytes functionName;
+                // TODO: WARNING: GetMethodName() appears to include lots of unexercised
+                // code, as evidenced by some fundamental bugs I found.  It should either be
+                // thoroughly reviewed, or some other more exercised code path to grab the
+                // name should be used.
+                // TODO: If we do stay with GetMethodName, it should be updated to print
+                // generics properly.  Today, it does not show generic type parameters, and
+                // if any arguments have a generic type, those arguments are just shown as
+                // "__Canon", even when they're value types.
+                GetMethodName(methodDef, pMD, &functionName);
+
+                DMLOut(DMLManagedVar(W("-a"), currentFrame, (LPWSTR)functionName.Ptr()));
+                ExtOut(" (%S)\n", wszModuleName);
             }
         }
-        ExtOut("=============================================================================\n");
 
         GetShadowContexts().push_back(std::move(checkpoint));
-#ifdef FEATURE_PAL
+//#ifdef FEATURE_PAL
         // Temporary until we get a process exit notification plumbed from lldb
-        UninitCorDebugInterface();
-#endif
+        // UninitCorDebugInterface();
+//#endif
         return S_OK;
     }
 
