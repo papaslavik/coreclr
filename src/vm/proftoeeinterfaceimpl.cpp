@@ -6051,7 +6051,7 @@ HRESULT ProfToEEInterfaceImpl::SetEnterLeaveFunctionHooks3WithInfo(FunctionEnter
 
     // The profiler must call SetEnterLeaveFunctionHooks3WithInfo during initialization, since
     // the enter/leave events are immutable and must also be set during initialization.
-    PROFILER_TO_CLR_ENTRYPOINT_SET_ELT((LF_CORPROF, 
+    PROFILER_TO_CLR_ENTRYPOINT_SET_ELT((LF_CORPROF,
                                         LL_INFO10, 
                                         "**PROF: SetEnterLeaveFunctionHooks3WithInfo 0x%p, 0x%p, 0x%p.\n", 
                                         pFuncEnter3WithInfo, 

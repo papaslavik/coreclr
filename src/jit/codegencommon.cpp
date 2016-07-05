@@ -7270,6 +7270,9 @@ void CodeGen::genProfilingEnterCallback(regNumber  initReg,
     {            
         instGen_Set_Reg_To_Imm(EA_4BYTE, argReg, (ssize_t)compiler->compProfilerMethHnd);
     }
+    assert(compiler->lvaOutgoingArgSpaceVar != BAD_VAR_NUM);        
+    int callerSPOffset = compiler->lvaToCallerSPRelativeOffset(0, isFramePointerUsed());
+    getEmitter()->emitIns_R_AR (INS_lea, EA_PTRSIZE, REG_ARG_1, genFramePointerReg(), -callerSPOffset);
 #else // _TARGET_*
     NYI("Pushing the profilerHandle & caller's sp for the profiler callout and locking registers");
 #endif // _TARGET_*

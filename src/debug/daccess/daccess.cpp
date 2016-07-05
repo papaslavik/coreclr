@@ -4384,6 +4384,7 @@ ClrDataAccess::TranslateExceptionRecordToNotification(
     GcEvtArgs pubGcEvtArgs;
     ULONG32 notifyType = 0;
     DWORD catcherNativeOffset = 0;
+    TADDR checkpointPtr;
 
     DAC_ENTER();
 
@@ -4551,7 +4552,7 @@ ClrDataAccess::TranslateExceptionRecordToNotification(
 
         case DACNotify::SAVE_STATE_NOTIFICATION:
         {
-            if (DACNotify::ParseSaveStateNotification(exInfo))
+            if (DACNotify::ParseSaveStateNotification(exInfo, checkpointPtr))
             {
                 pubMethodInst = NULL;
                 status = S_OK;
@@ -4621,7 +4622,7 @@ ClrDataAccess::TranslateExceptionRecordToNotification(
             notify->OnCodeGenerated(pubMethodInst);
             break;
         case DACNotify::SAVE_STATE_NOTIFICATION:
-            notify4->OnSaveStateReceived();
+            notify4->OnSaveStateReceived((void*)checkpointPtr);
             break;
         case DACNotify::POP_STATE_NOTIFICATION:
             notify4->OnPopStateReceived();

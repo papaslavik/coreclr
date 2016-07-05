@@ -205,7 +205,6 @@ LLDBServices::VirtualUnwind(
     }
 
     GetContextFromFrame(frameFound, dtcontext);
-
     return S_OK;
 }
 

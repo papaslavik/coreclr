@@ -7565,7 +7565,7 @@ EXTERN_C const IID IID_IXCLRDataExceptionNotification4;
         virtual HRESULT STDMETHODCALLTYPE ExceptionCatcherEnter( 
             /* [in] */ IXCLRDataMethodInstance *catchingMethod,
             DWORD catcherNativeOffset) = 0;
-        virtual HRESULT STDMETHODCALLTYPE OnSaveStateReceived() = 0;
+        virtual HRESULT STDMETHODCALLTYPE OnSaveStateReceived(void* checkpointPtr) = 0;
         virtual HRESULT STDMETHODCALLTYPE OnPopStateReceived() = 0;
         
     };
@@ -7597,7 +7597,7 @@ EXTERN_C const IID IID_IXCLRDataExceptionNotification4;
             IXCLRDataExceptionNotification4 * This,
             /* [in] */ IXCLRDataMethodInstance *method);
         
-        HRESULT ( STDMETHODCALLTYPE *OnSaveStateReceived )();
+        HRESULT ( STDMETHODCALLTYPE *OnSaveStateReceived )(void* checkpointPtr);
 
         HRESULT ( STDMETHODCALLTYPE *OnPopStateReceived )();
         

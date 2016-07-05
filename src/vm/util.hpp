@@ -1249,7 +1249,7 @@ public:
     static void DoExceptionNotification(class Thread* ThreadPtr);
     static void DoGCNotification(const GcEvtArgs& evtargs);
     static void DoExceptionCatcherEnterNotification(MethodDesc *MethodDescPtr, DWORD nativeOffset);
-    static void DoSaveStateNotification();
+    static void DoSaveStateNotification(void* checkpointPtr);
     static void DoPopStateNotification();
 
     // called from the DAC
@@ -1261,7 +1261,7 @@ public:
     static BOOL ParseExceptionNotification(TADDR Args[], TADDR& ThreadPtr);
     static BOOL ParseGCNotification(TADDR Args[], GcEvtArgs& evtargs);
     static BOOL ParseExceptionCatcherEnterNotification(TADDR Args[], TADDR& MethodDescPtr, DWORD& nativeOffset);
-    static BOOL ParseSaveStateNotification(TADDR Args[]);
+    static BOOL ParseSaveStateNotification(TADDR Args[], TADDR& checkpointPtr);
     static BOOL ParsePopStateNotification(TADDR Args[]);
 };
 

@@ -3480,7 +3480,7 @@ void DACNotify::DoExceptionCatcherEnterNotification(MethodDesc *MethodDescPtr, D
     }
 }
 
-void DACNotify::DoSaveStateNotification()
+void DACNotify::DoSaveStateNotification(void* checkpointPtr)
 {
     CONTRACTL
     {
@@ -3491,8 +3491,8 @@ void DACNotify::DoSaveStateNotification()
     }
     CONTRACTL_END;
 
-    TADDR Args[1] = { SAVE_STATE_NOTIFICATION };
-    DACNotifyExceptionHelper(Args, 1);
+    TADDR Args[2] = { SAVE_STATE_NOTIFICATION, (TADDR) checkpointPtr };
+    DACNotifyExceptionHelper(Args, 2);
 }
 
 void DACNotify::DoPopStateNotification()
@@ -3632,14 +3632,14 @@ BOOL DACNotify::ParseExceptionCatcherEnterNotification(TADDR Args[], TADDR& Meth
     return TRUE;
 }
 
-BOOL DACNotify::ParseSaveStateNotification(TADDR Args[])
+BOOL DACNotify::ParseSaveStateNotification(TADDR Args[], TADDR& checkpointPtr)
 {
     _ASSERTE(Args[0] == SAVE_STATE_NOTIFICATION);
     if (Args[0] != SAVE_STATE_NOTIFICATION)
     {
         return FALSE;
     }
-
+    checkpointPtr = Args[1];
     return TRUE;
 }
 

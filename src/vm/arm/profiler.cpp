@@ -25,9 +25,6 @@ MethodDesc *FunctionIdToMethodDesc(FunctionID functionID);
 
 typedef struct _PROFILE_PLATFORM_SPECIFIC_DATA
 {
-    UINT32      r0;         // Keep r0 & r1 contiguous to make returning 64-bit results easier
-    UINT32      r1;
-    void       *R11;
     void       *Pc;
     union                   // Float arg registers as 32-bit (s0-s15) and 64-bit (d0-d7)
     {
@@ -39,6 +36,7 @@ typedef struct _PROFILE_PLATFORM_SPECIFIC_DATA
     void       *profiledSp; // location of arguments on stack
     LPVOID      hiddenArg;
     UINT32      flags;
+    UINT32      r[13];
 } PROFILE_PLATFORM_SPECIFIC_DATA, *PPROFILE_PLATFORM_SPECIFIC_DATA;
 
 
@@ -134,7 +132,7 @@ Stack for the above call will look as follows (stack growing downwards):
         CONTEXT ctx;
         memset(&ctx, 0, sizeof(CONTEXT));
         ctx.Sp = (UINT)pData->probeSp;
-        ctx.R11 = (UINT)pData->R11;
+        ctx.R11 = (UINT)pData->r[11];
         ctx.Pc = (UINT)pData->Pc;
         // For some functions which do localloc, sp is saved in r9. In order to perform unwinding for functions r9 must be set in the context.
         // r9 is stored at offset (sizeof(PROFILE_PLATFORM_SPECIFIC_DATA) (this also includes the padding done for 8-byte stack alignement) + size required for (r0,r3)) bytes from pData
@@ -343,14 +341,14 @@ LPVOID ProfileArgIterator::GetReturnBufferAddr(void)
 
     if (m_argIterator.HasRetBuffArg())
     {
-        return (LPVOID)pData->r0;
+        return (LPVOID)pData->r[0];
     }
 
     if (m_argIterator.GetFPReturnSize() != 0)
         return &pData->d[0];
 
     if (m_argIterator.GetSig()->GetReturnType() != ELEMENT_TYPE_VOID)
-        return &pData->r0;
+        return &pData->r[0];
     else
         return NULL;
 }

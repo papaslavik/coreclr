@@ -44,23 +44,16 @@ ULONG STDMETHODCALLTYPE Profiler::Release(void)
 	return result;
 }
 
-void MyFunctionEnter(FunctionID funcID) {
+void MyFunctionEnter(FunctionIDOrClientID functionIDOrClientID, COR_PRF_ELT_INFO eltInfo) {
 	LogProfilerActivity("FunctionEnter\n");
-//	HRESULT hr;
-//	if(FAILED(hr = InitCorDebugInterface())) {
-//		LogProfilerActivity("Failed initializing CorDebugInterface");
-//	} else {
-//		LogProfilerActivity("Success initializing CorDebugInterface");
-//	}
-//	DebugBreak();
-//	g_pDebugInterface->JITComplete(funcID, 0);
-//	DACNotify::DoSaveStateNotification(NULL);
-	NotifySave();
+	NotifySave((void*)eltInfo);
 }
-void MyFunctionLeave(FunctionID funcID) {
+void MyFunctionLeave(FunctionIDOrClientID functionIDOrClientID, COR_PRF_ELT_INFO eltInfo) {
+	(void)eltInfo;
 	NotifyPop();
 }
-void MyFunctionTailCall(FunctionID funcID) {
+void MyFunctionTailCall(FunctionIDOrClientID functionIDOrClientID, COR_PRF_ELT_INFO eltInfo) {
+	(void)eltInfo;
 	LogProfilerActivity("FunctionTailcall\n");
 }
 
@@ -71,12 +64,12 @@ HRESULT STDMETHODCALLTYPE Profiler::Initialize(IUnknown *pICorProfilerInfoUnk)
 	HRESULT hr = pICorProfilerInfoUnk->QueryInterface(IID_ICorProfilerInfo3, (void **) &info);
 	if (hr == S_OK && info != NULL)
 	{
-		info->SetEventMask(COR_PRF_MONITOR_ENTERLEAVE);
-		info->SetEnterLeaveFunctionHooks(MyFunctionEnter, MyFunctionLeave, NULL);
+		info->SetEventMask(COR_PRF_MONITOR_ENTERLEAVE | COR_PRF_ENABLE_FUNCTION_ARGS | COR_PRF_ENABLE_FUNCTION_RETVAL | COR_PRF_ENABLE_FRAME_INFO);
+		info->SetEnterLeaveFunctionHooks3WithInfo(MyFunctionEnter, MyFunctionLeave, NULL);
 		info->Release();
 		info = NULL;
 	}
-
+	NotifyInitialize();
 	return S_OK;
 }
 

@@ -67,7 +67,6 @@ LOCAL_LABEL(LNoFloatingPoint):
 
         // Copy [pArgumentRegisters, ..., pArgumentRegisters + 12]
         // into r0, ..., r3
-
         ldr     r4, [r5,#CallDescrData__pArgumentRegisters]
         ldm     r4, {r0-r3}
 
@@ -637,16 +636,46 @@ ThePreStubPatchLabel:
         .endm
 
 //
-// EXTERN_C void ProfileEnterNaked(FunctionIDOrClientID functionIDOrClientID);
+// EXTERN_C void ProfileEnterNaked(FunctionIDOrClientID functionIDOrClientID, size_t callerSp);
 //
 NESTED_ENTRY ProfileEnterNaked, _TEXT, NoHandler
-    PROLOG_PUSH "{r0-r1, r7, lr}"
+    PROLOG_PUSH "{r4, r5, r7, r11, lr}"
     PROLOG_STACK_SAVE_OFFSET r7, #8
-    movw    r1, #0x1    // stub for PlatformSpecificData, to avoid triggering an assert. 
-                        // As long as we are using only v1 of the interface, we are fine.
-    bl      C_FUNC(ProfileEnter)
+
+    // fields of PLATFORM_SPECIFIC_DATA, in reverse order
+
+    // void       *Pc;
+    // union                   // Float arg registers as 32-bit (s0-s15) and 64-bit (d0-d7)
+    // {
+    //     UINT32  s[16];
+    //     UINT64  d[8];
+    // };
+    // FunctionID  functionId;
+    // void       *probeSp;    // stack pointer of managed function 
+    // void       *profiledSp; // location of arguments on stack
+    // LPVOID      hiddenArg;
+    // UINT32      flags;
+    // UINT32      r[13];
+    push        { r4 } // keep stack aligned
+    push        { r0 - r6 }
+    ldr         r4, [r7]
+    push        { r4 }
+    push        { r8 - r12 }
+    add         r5, sp, #76
+    movw        r4, #1
+    push        { /* flags      */ r4 }
+    movw        r4, #0
+    push        { /* hiddenArg  */ r4 }
+    push        { /* profiledSp */ r1 }
+    push        { /* probeSp    */ r5 }
+    push        { /* functionId */ r0 }
+    vpush.64    { d0 - d7 }
+    push        { r4 } // required padding
+    push        { lr }
+    mov         r1, sp
+    bl          C_FUNC(ProfileEnter)
     EPILOG_STACK_RESTORE_OFFSET r7, #8
-    EPILOG_POP "{r0-r1, r7, pc}"
+    EPILOG_POP "{r4, r5, r7, r11, pc}"
 NESTED_END ProfileEnterNaked, _TEXT
 
 //

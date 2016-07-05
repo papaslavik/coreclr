@@ -118,6 +118,7 @@
 #include "sos_md.h"
 
 #include <vector>
+#include <time.h>
 #include <memory>
 #ifndef FEATURE_PAL
 
@@ -6673,27 +6674,9 @@ BOOL g_fAllowJitOptimization = TRUE;
 // execution is about to enter a catch clause
 BOOL g_stopOnNextCatch = FALSE;
 
-class CheckpointData {
-public:
-    CROSS_PLATFORM_CONTEXT context;
-    PBYTE stackBuffer;
-    ULONG bufferSize;
-    CheckpointData()
-        : stackBuffer(nullptr),
-          bufferSize(0)
-    {}
-    
-    ~CheckpointData() 
-    {
-        free(stackBuffer);
-    }
-};
-
-typedef std::vector<std::unique_ptr<CheckpointData>> CheckpointVector;
-
-static CheckpointVector& GetShadowContexts() {
-    static CheckpointVector shadowContexts;
-    return shadowContexts;
+static TADDR& GetCheckpointPtr() {
+    static TADDR checkpointPtr;
+    return checkpointPtr;
 }
 
 // According to the latest debuggers these callbacks will not get called
@@ -6792,172 +6775,13 @@ public:
 
     STDMETHODIMP OnPopStateReceived()
     {
-        if (GetShadowContexts().size() > 0)
-            GetShadowContexts().pop_back();
-        m_dbgStatus = DEBUG_STATUS_GO_HANDLED;
         return S_OK;
     }
 
-    STDMETHODIMP OnSaveStateReceived()
+    STDMETHODIMP OnSaveStateReceived(void* checkpointPtr)
     {
-
-        HRESULT Status;
-
+        GetCheckpointPtr() = (TADDR)checkpointPtr;
         m_dbgStatus = DEBUG_STATUS_GO_HANDLED;
-        IfFailRet(InitCorDebugInterface());
-
-        ToRelease<ICorDebugThread> pThread;
-        ToRelease<ICorDebugThread3> pThread3;
-        ToRelease<ICorDebugStackWalk> pStackWalk;
-        ULONG ulThreadID = 0;
-        g_ExtSystem->GetCurrentThreadSystemId(&ulThreadID);
-
-        IfFailRet(g_pCorDebugProcess->GetThread(ulThreadID, &pThread));
-        IfFailRet(pThread->QueryInterface(IID_ICorDebugThread3, (LPVOID *) &pThread3));
-        IfFailRet(pThread3->CreateStackWalk(&pStackWalk));
-
-        InternalFrameManager internalFrameManager;
-        IfFailRet(internalFrameManager.Init(pThread3));
-        
-    #if defined(_AMD64_)
-        ExtOut("%-16s %-16s %s\n", "Child SP", "IP", "Call Site");
-    #elif defined(_X86_)
-        ExtOut("%-8s %-8s %s\n", "Child SP", "IP", "Call Site");
-    #endif
-
-        std::unique_ptr<CheckpointData> checkpoint(new CheckpointData());
-
-        int currentFrame = 0;
-        for (Status = S_OK; currentFrame < 2; Status = pStackWalk->Next())
-        {
-
-            if (Status == CORDBG_S_AT_END_OF_STACK)
-            {
-                ExtOut("Stack walk complete.\n");
-                break;
-            }
-            IfFailRet(Status);
-
-            if (IsInterrupt())
-            {
-                ExtOut("<interrupted>\n");
-                break;
-            }
-            
-            CROSS_PLATFORM_CONTEXT context;
-            ULONG32 cbContextActual;
-            if ((Status=pStackWalk->GetContext(
-                DT_CONTEXT_FULL, 
-                sizeof(context),
-                &cbContextActual,
-                (BYTE *)&context))!=S_OK)
-            {
-                ExtOut("GetFrameContext failed: %lx\n",Status);
-                break;
-            }
-
-            // First find the info for the Frame object, if the current frame has an associated clr!Frame.
-            CLRDATA_ADDRESS sp = GetSP(context);
-            CLRDATA_ADDRESS ip = GetIP(context);
-
-            if (currentFrame == 1) {
-                CLRDATA_ADDRESS oldSp = GetSP(checkpoint->context);
-                checkpoint->stackBuffer = new NOTHROW BYTE[sp - oldSp];
-                memset(checkpoint->stackBuffer, 0, sp-oldSp);
-                g_ExtData->ReadVirtual(oldSp, checkpoint->stackBuffer, sp-oldSp, &checkpoint->bufferSize);
-                break;
-            }
-
-            ToRelease<ICorDebugFrame> pFrame;
-            IfFailRet(pStackWalk->GetFrame(&pFrame));
-            if (Status == S_FALSE)
-            {
-                continue;
-            }
-
-            ToRelease<ICorDebugRuntimeUnwindableFrame> pRuntimeUnwindableFrame;
-            Status = pFrame->QueryInterface(IID_ICorDebugRuntimeUnwindableFrame, (LPVOID *) &pRuntimeUnwindableFrame);
-            if (SUCCEEDED(Status))
-            {
-                continue;
-            }
-
-            // Print the method/Frame info
-
-            // TODO: IS THE FOLLOWING NECESSARY, OR AM I GUARANTEED THAT ALL INTERNAL FRAMES
-            // CAN BE FOUND VIA GetActiveInternalFrames?
-            ToRelease<ICorDebugInternalFrame> pInternalFrame;
-            Status = pFrame->QueryInterface(IID_ICorDebugInternalFrame, (LPVOID *) &pInternalFrame);
-            if (SUCCEEDED(Status))
-            {
-                // This is a clr!Frame.
-                LPCWSTR pwszFrameName = W("TODO: Implement GetFrameName");
-                ExtOut("[%S: p] ", pwszFrameName);
-            }
-
-            // Print the frame's associated function info, if it has any.
-            ToRelease<ICorDebugILFrame> pILFrame;
-            HRESULT hrILFrame = pFrame->QueryInterface(IID_ICorDebugILFrame, (LPVOID*) &pILFrame);
-
-            if (SUCCEEDED(hrILFrame))
-            {
-                ToRelease<ICorDebugFunction> pFunction;
-                Status = pFrame->GetFunction(&pFunction);
-                if (FAILED(Status))
-                {
-                    // We're on a JITted frame, but there's no Function for it.  So it must
-                    // be... 
-                    ExtOut("[IL Stub or LCG]\n");
-                    continue;
-                }
-                checkpoint->context = context;
-                ++currentFrame;
-
-                ToRelease<ICorDebugClass> pClass;
-                ToRelease<ICorDebugModule> pModule;
-                mdMethodDef methodDef;
-                IfFailRet(pFunction->GetClass(&pClass));
-                IfFailRet(pFunction->GetModule(&pModule));
-                IfFailRet(pFunction->GetToken(&methodDef));
-
-                WCHAR wszModuleName[100];
-                ULONG32 cchModuleNameActual;
-                IfFailRet(pModule->GetName(_countof(wszModuleName), &cchModuleNameActual, wszModuleName));
-
-                ToRelease<IUnknown> pMDUnknown;
-                ToRelease<IMetaDataImport> pMD;
-                ToRelease<IMDInternalImport> pMDInternal;
-                IfFailRet(pModule->GetMetaDataInterface(IID_IMetaDataImport, &pMDUnknown));
-                IfFailRet(pMDUnknown->QueryInterface(IID_IMetaDataImport, (LPVOID*) &pMD));
-                IfFailRet(GetMDInternalFromImport(pMD, &pMDInternal));
-
-                mdTypeDef typeDef;
-                IfFailRet(pClass->GetToken(&typeDef));
-
-                // Note that we don't need to pretty print the class, as class name is
-                // already printed from GetMethodName below
-
-                CQuickBytes functionName;
-                // TODO: WARNING: GetMethodName() appears to include lots of unexercised
-                // code, as evidenced by some fundamental bugs I found.  It should either be
-                // thoroughly reviewed, or some other more exercised code path to grab the
-                // name should be used.
-                // TODO: If we do stay with GetMethodName, it should be updated to print
-                // generics properly.  Today, it does not show generic type parameters, and
-                // if any arguments have a generic type, those arguments are just shown as
-                // "__Canon", even when they're value types.
-                GetMethodName(methodDef, pMD, &functionName);
-
-                DMLOut(DMLManagedVar(W("-a"), currentFrame, (LPWSTR)functionName.Ptr()));
-                ExtOut(" (%S)\n", wszModuleName);
-            }
-        }
-
-        GetShadowContexts().push_back(std::move(checkpoint));
-//#ifdef FEATURE_PAL
-        // Temporary until we get a process exit notification plumbed from lldb
-        // UninitCorDebugInterface();
-//#endif
         return S_OK;
     }
 
@@ -12860,24 +12684,69 @@ DECLARE_API(Watch)
 
 #endif // FEATURE_PAL
 
+class CheckpointData {
+public:
+    T_CONTEXT registerContext;
+    PBYTE stackBuffer;
+    size_t stackBufferSize;
+    ~CheckpointData() 
+    {}
+};
+
+class CheckpointNode {
+public:
+    CheckpointNode()
+        : data(nullptr), next(nullptr)
+    {}
+    CheckpointData* data;
+    CheckpointNode* next;
+    ~CheckpointNode() 
+    {}
+};
+
 DECLARE_API(ClrBack)
 {
     INIT_API();
-    if (!GetShadowContexts().empty())
+    if (GetCheckpointPtr())
     {
-        std::unique_ptr<CheckpointData>& checkpoint = GetShadowContexts().back();
-
+        // we have an address of a pointer to CheckpointNode, so the first thing to do is read the pointer to the CheckpointNode
+        TADDR checkpointPtr = 0;
+        g_ExtData->ReadVirtual(TO_CDADDR(GetCheckpointPtr()), &checkpointPtr, sizeof(TADDR), NULL);
+        // Now read the CheckpointNode that checkpointPtr points to
+        CheckpointNode node;
+        g_ExtData->ReadVirtual(TO_CDADDR(checkpointPtr), &node, sizeof(CheckpointNode), NULL);
+        // Now read CheckpointData that the data field of the CheckpointNode points to
+        CheckpointData data;
+        g_ExtData->ReadVirtual(TO_CDADDR(node.data), &data, sizeof(CheckpointData), NULL);
+        // Now read the stack buffer that CheckpointData holds
+        PBYTE buffer = new BYTE[data.stackBufferSize];
+        if (buffer == nullptr)
+            return S_OK;
+        g_ExtData->ReadVirtual(TO_CDADDR(data.stackBuffer), buffer, data.stackBufferSize, NULL);
+        // whew, now we have everything we need to restore the context.
         ULONG regIdxs[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
-        // TODO: FIX THIS!
-        ARM_CONTEXT armContext = checkpoint->context.ArmContext;
-        ULONG values[] = {armContext.R0, armContext.R1, armContext.R2, armContext.R3, armContext.R4, armContext.R5, armContext.R6, armContext.R7, 
-                        armContext.R8, armContext.R9, armContext.R10, armContext.R11, armContext.R12, armContext.Sp, armContext.Lr, armContext.Pc };
+        ULONG values[] = {  data.registerContext.R0, 
+                            data.registerContext.R1, 
+                            data.registerContext.R2, 
+                            data.registerContext.R3, 
+                            data.registerContext.R4, 
+                            data.registerContext.R5, 
+                            data.registerContext.R6, 
+                            data.registerContext.R7, 
+                            data.registerContext.R8, 
+                            data.registerContext.R9, 
+                            data.registerContext.R10, 
+                            data.registerContext.R11, 
+                            data.registerContext.R12, 
+                            data.registerContext.Sp, 
+                            data.registerContext.Lr, 
+                            data.registerContext.Pc 
+                        };
         g_ExtRegisters->SetValues(0x10, regIdxs, 0, values);
-
-
-        CLRDATA_ADDRESS oldSp = GetSP(checkpoint->context);
         ULONG bytesWritten = 0;
-        g_ExtData->WriteVirtual(oldSp, checkpoint->stackBuffer, checkpoint->bufferSize, &bytesWritten);
+        g_ExtData->WriteVirtual(data.registerContext.Sp, data.stackBuffer, data.stackBufferSize, &bytesWritten);
+
+        delete[] buffer;
     }
     return S_OK;
 }
