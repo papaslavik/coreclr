@@ -65,7 +65,8 @@ static CheckpointNode* g_CheckpointList = nullptr;
 extern UINT_PTR ProfileGetIPFromPlatformSpecificHandle(void * handle);
 typedef struct _PROFILE_PLATFORM_SPECIFIC_DATA
 {
-    void       *Pc;    union                   // Float arg registers as 32-bit (s0-s15) and 64-bit (d0-d7)
+    void       *Pc;    
+    union                   // Float arg registers as 32-bit (s0-s15) and 64-bit (d0-d7)
     {
         UINT32  s[16];
         UINT64  d[8];
@@ -80,6 +81,8 @@ typedef struct _PROFILE_PLATFORM_SPECIFIC_DATA
 
 void NotifySave(void* eltInfo) {
     (void)eltInfo;
+    static int counter = 0;
+    ++counter;
     PPROFILE_PLATFORM_SPECIFIC_DATA platformSpecificData = *static_cast<PPROFILE_PLATFORM_SPECIFIC_DATA*>(eltInfo);
     T_CONTEXT context;
     memset(&context, 0, sizeof(T_CONTEXT));
@@ -98,15 +101,17 @@ void NotifySave(void* eltInfo) {
     context.R12 = (UINT32)platformSpecificData->r[12];
     context.Pc = (UINT32)platformSpecificData->Pc;
     context.Sp = (UINT32)platformSpecificData->probeSp;
+
     if (g_CheckpointList != nullptr)
         Thread::VirtualUnwindCallFrame(&context, NULL, NULL);
+    if (context.R11 < context.Sp)
+        return;
     // now we have a valid frame, record it
     CheckpointData* data = new CheckpointData();
     data->registerContext = context;
-    if (context.R11 < context.Sp)
-        return;
     data->stackBufferSize = context.R11 - context.Sp;
-    printf("allocated %u bytes\n", data->stackBufferSize);
+
+    printf("counter: %d\n", counter);
     data->stackBuffer = (PBYTE) new BYTE[data->stackBufferSize];
     memcpy(data->stackBuffer, (void*)context.Sp, data->stackBufferSize);
 

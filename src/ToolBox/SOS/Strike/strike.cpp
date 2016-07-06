@@ -12712,19 +12712,30 @@ DECLARE_API(ClrBack)
         // we have an address of a pointer to CheckpointNode, so the first thing to do is read the pointer to the CheckpointNode
         TADDR checkpointPtr = 0;
         g_ExtData->ReadVirtual(TO_CDADDR(GetCheckpointPtr()), &checkpointPtr, sizeof(TADDR), NULL);
+
+        if (checkpointPtr == 0)
+            return S_FALSE;
+
         // Now read the CheckpointNode that checkpointPtr points to
         CheckpointNode node;
         g_ExtData->ReadVirtual(TO_CDADDR(checkpointPtr), &node, sizeof(CheckpointNode), NULL);
+
+        if (node.data == nullptr)
+            return S_FALSE;
+
         // Now read CheckpointData that the data field of the CheckpointNode points to
         CheckpointData data;
         g_ExtData->ReadVirtual(TO_CDADDR(node.data), &data, sizeof(CheckpointData), NULL);
+
+        if (data.stackBuffer == nullptr)
+            return S_FALSE;
+
         // Now read the stack buffer that CheckpointData holds
-        PBYTE buffer = new BYTE[data.stackBufferSize];
+        PBYTE buffer = new NOTHROW BYTE[data.stackBufferSize];
         if (buffer == nullptr)
             return S_OK;
         g_ExtData->ReadVirtual(TO_CDADDR(data.stackBuffer), buffer, data.stackBufferSize, NULL);
         // whew, now we have everything we need to restore the context.
-        ULONG regIdxs[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
         ULONG values[] = {  data.registerContext.R0, 
                             data.registerContext.R1, 
                             data.registerContext.R2, 
@@ -12742,9 +12753,9 @@ DECLARE_API(ClrBack)
                             data.registerContext.Lr, 
                             data.registerContext.Pc 
                         };
-        g_ExtRegisters->SetValues(0x10, regIdxs, 0, values);
+        g_ExtRegisters->SetValues(0x10, nullptr, 0, values);
         ULONG bytesWritten = 0;
-        g_ExtData->WriteVirtual(data.registerContext.Sp, data.stackBuffer, data.stackBufferSize, &bytesWritten);
+        g_ExtData->WriteVirtual(data.registerContext.Sp, buffer, data.stackBufferSize, &bytesWritten);
 
         delete[] buffer;
     }

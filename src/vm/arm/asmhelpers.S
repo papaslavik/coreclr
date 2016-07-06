@@ -656,11 +656,12 @@ NESTED_ENTRY ProfileEnterNaked, _TEXT, NoHandler
     // LPVOID      hiddenArg;
     // UINT32      flags;
     // UINT32      r[13];
-    push        { r4 } // keep stack aligned
-    push        { r0 - r6 }
+    push        { r4 } // keep the stack aligned
+    push        { r8 - r12 }
     ldr         r4, [r7]
     push        { r4 }
-    push        { r8 - r12 }
+    ldr         r4, [sp, #28]
+    push        { r0 - r6 }
     add         r5, sp, #76
     movw        r4, #1
     push        { /* flags      */ r4 }
@@ -674,6 +675,7 @@ NESTED_ENTRY ProfileEnterNaked, _TEXT, NoHandler
     push        { lr }
     mov         r1, sp
     bl          C_FUNC(ProfileEnter)
+    add         sp, #148
     EPILOG_STACK_RESTORE_OFFSET r7, #8
     EPILOG_POP "{r4, r5, r7, r11, pc}"
 NESTED_END ProfileEnterNaked, _TEXT
