@@ -5606,6 +5606,12 @@ public:
                             O2K_SUBRANGE };
     struct AssertionDsc
     {
+        AssertionDsc()
+        {
+           assertionKind = OAK_EQUAL;
+           op1.kind = O1K_ARRLEN_OPER_BND;
+           op1.vn = 0xffffffff;
+        }
         optAssertionKind        assertionKind;
         struct SsaVar
         {
