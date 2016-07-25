@@ -5606,6 +5606,22 @@ public:
                             O2K_SUBRANGE };
     struct AssertionDsc
     {
+        AssertionDsc()
+        {
+          void* v = (void *)this;
+          int *i = (int *) v;
+
+          *i++=0x1;
+          *i++= 0x5;
+          *i++= 0xffffffff;
+	  *i++= 0xffffffff;
+	  *i++= 0x3;
+	  *i++= 0xc;
+	  *i++= 0xffffffff;
+	  *i++= 0xffffffff;
+	  *i++= 0xffffffff;
+	  *i++= 0xffffffff;
+        }
         optAssertionKind        assertionKind;
         struct SsaVar
         {
