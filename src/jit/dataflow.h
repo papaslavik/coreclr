@@ -55,6 +55,8 @@ void DataFlow::ForwardAnalysis(TCallback& callback)
     jitstd::list<BasicBlock*> worklist(jitstd::allocator<void>(m_pCompiler->getAllocator()));
 
     worklist.insert(worklist.begin(), m_pCompiler->fgFirstBB);
+    if (m_pCompiler->fgFirstBB)
+      worklist.insert(worklist.end(), m_pCompiler->fgFirstBB->bbNext);
     while (!worklist.empty())
     {
         BasicBlock* block = *(worklist.begin());
