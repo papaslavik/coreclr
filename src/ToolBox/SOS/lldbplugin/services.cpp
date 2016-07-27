@@ -7,6 +7,7 @@
 #include "sosplugin.h"
 #include <string.h>
 #include <string>
+#include <assert.h>
 
 ULONG g_currentThreadIndex = -1;
 ULONG g_currentThreadSystemId = -1;
@@ -1777,11 +1778,10 @@ LLDBServices::GetNameByIndex(ULONG index, char *name, size_t namelen)
         {
             lldb::SBValue regSet = regSets.GetValueAtIndex(rs);
             uint32_t regCnt = regSet.GetNumChildren();
-            uint32_t r;
-            for (r = 0; r < regCnt && regIndex < index; r++, regIndex++) {
-            }
-            if (regIndex == index)
+            assert(regIndex <= index);
+            if (regIndex+regCnt > index)
             {
+                uint32_t r = index - regIndex;
                 lldb::SBValue reg = regSet.GetChildAtIndex(r);
                 const char *regName = reg.GetName();
                 if (strlen(regName) < namelen)
@@ -1789,7 +1789,9 @@ LLDBServices::GetNameByIndex(ULONG index, char *name, size_t namelen)
                     strcpy(name, regName);
                     return S_OK;
                 }
+                break;
             }
+            regIndex += regCnt;
         }
     }
     return E_FAIL;
